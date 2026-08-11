@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>SwimApp</title>
+<meta name="description" content="Log treningów pływackich: tracker splitów, plan treningowy i historia sesji.">
+<meta name="theme-color" content="#0a1d42">
+<meta name="color-scheme" content="dark">
+<!-- iOS: pełny ekran po dodaniu do ekranu głównego -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="SwimApp">
+<!-- Favicon inline (SVG data URI) — bez dodatkowego pliku i bez 404 -->
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 38 38'%3E%3Crect width='38' height='38' rx='8' fill='%230a1520'/%3E%3Cg fill='none' stroke-width='4' stroke-linecap='round'%3E%3Cpath d='M2 12 Q10 6, 18 12 T34 12' stroke='%23e2e8f0'/%3E%3Cpath d='M2 20 Q10 14, 18 20 T34 20' stroke='%2372c7f0'/%3E%3Cpath d='M2 28 Q10 22, 18 28 T34 28' stroke='%234f7fe8'/%3E%3C/g%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
+<!-- ?v= wymusza pobranie nowej wersji po deployu (GitHub Pages cachuje agresywnie).
+     Przy podbiciu wersji zmień numer TU i w js/wersja.js — patrz CLAUDE.md. -->
+<link rel="stylesheet" href="css/style.css?v=0.9.2">
+</head>
+<body>
+<header class="app-header">
+  <div class="app-header-inner">
+    <div class="app-header-top">
+      <div class="logo">
+        <svg width="26" height="21" viewBox="0 0 38 30" aria-label="SwimApp">
+          <path d="M2 8 Q10 2, 18 8 T34 8" fill="none" stroke="oklch(0.9 0.02 230)" stroke-width="4" stroke-linecap="round"/>
+          <path d="M2 16 Q10 10, 18 16 T34 16" fill="none" stroke="var(--accent-info)" stroke-width="4" stroke-linecap="round"/>
+          <path d="M2 24 Q10 18, 18 24 T34 24" fill="none" stroke="var(--accent-confirm)" stroke-width="4" stroke-linecap="round"/>
+        </svg>
+        <span class="wordmark"><span class="w-swim">Swim</span><span class="w-app">App</span></span>
+      </div>
+      <span class="ver-badge" id="wersja"></span>
+    </div>
+    <nav id="nawigacja" class="navrow"></nav>
+  </div>
+</header>
+
+<main id="widok"></main>
+
+<script src="js/wersja.js?v=0.9.2"></script>
+<script src="js/app.js?v=0.9.2"></script>
+<script src="js/dane.js?v=0.9.2"></script>
+<script src="js/model.js?v=0.9.2"></script>
+<script src="js/plan.js?v=0.9.2"></script>
+<script src="js/sesja-tabela.js?v=0.9.2"></script>
+<script src="js/tracker.js?v=0.9.2"></script>
+<script src="js/plan-widok.js?v=0.9.2"></script>
+<script src="js/historia.js?v=0.9.2"></script>
+<script src="js/ustawienia.js?v=0.9.2"></script>
+</body>
+</html>
