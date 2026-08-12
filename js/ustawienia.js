@@ -26,6 +26,7 @@ window.Ustawienia = (function () {
     const scroll = document.createElement('div');
     scroll.className = 'view-scroll';
     scroll.appendChild(renderKopiaIEksport());
+    scroll.appendChild(renderSynchronizacja());
     scroll.appendChild(renderEdycja());
     const wersja = document.createElement('p');
     wersja.className = 'stopka-wersja';
@@ -89,6 +90,36 @@ window.Ustawienia = (function () {
         }
       };
       reader.readAsText(plik);
+    });
+
+    return karta;
+  }
+
+  // Karta czysto wizualna — etap 3 (Gist sync, patrz wdrozenie-online.md §3d) jeszcze
+  // niepodłączony. Żaden z przycisków nie zapisuje niczego do localStorage.
+  function renderSynchronizacja() {
+    const karta = document.createElement('div');
+    karta.className = 'card';
+    karta.innerHTML =
+      '<div class="section-label">Synchronizacja</div>' +
+      '<p class="hint" style="margin-top:0;">⚠ Nieskonfigurowane — wklej ID Gista i token</p>' +
+      '<div class="input-row">' +
+        '<input type="text" id="syncGistId" placeholder="ID Gista" style="flex:1;min-width:0;text-align:left;" ' +
+          'autocapitalize="off" autocorrect="off" spellcheck="false" autocomplete="off">' +
+      '</div>' +
+      '<div class="input-row" style="flex-wrap:nowrap;">' +
+        '<input type="password" id="syncToken" placeholder="Token GitHub" ' +
+          'autocapitalize="off" autocorrect="off" spellcheck="false" autocomplete="off">' +
+        '<button type="button" class="small" id="syncTokenOko" aria-label="Pokaż/ukryj token">👁</button>' +
+      '</div>' +
+      '<div class="btn-row" style="margin-top:8px;">' +
+        '<button class="primary" id="syncSprawdz">Sprawdź i zapisz</button>' +
+        '<button class="small" id="syncUsun">Usuń z urządzenia</button>' +
+      '</div>';
+
+    const tokenInp = karta.querySelector('#syncToken');
+    karta.querySelector('#syncTokenOko').addEventListener('click', function () {
+      tokenInp.type = tokenInp.type === 'password' ? 'text' : 'password';
     });
 
     return karta;

@@ -13,7 +13,7 @@ window.App = (function () {
   function renderNawigacji() {
     const nav = document.getElementById('nawigacja');
     nav.innerHTML = '';
-    widoki.forEach(function (w) {
+    widoki.filter(function (w) { return w.id !== 'ustawienia'; }).forEach(function (w) {
       const btn = document.createElement('button');
       btn.className = 'nav-pill';
       if (!w.aktywny) {
@@ -27,6 +27,9 @@ window.App = (function () {
       }
       nav.appendChild(btn);
     });
+
+    const gearBtn = document.getElementById('ustawieniaBtn');
+    if (gearBtn) gearBtn.classList.toggle('active', aktywnyId === 'ustawienia');
   }
 
   function przelacz(id) {
@@ -45,6 +48,17 @@ window.App = (function () {
     document.title = 'SwimApp – v' + window.APP_VERSION;
   }
 
+  // Ekran startowy znika po sekundzie; element usuwamy dopiero po animacji,
+  // żeby nie przechwytywał kliknięć w przezroczystym stanie.
+  function schowajSplash() {
+    const splash = document.getElementById('splash');
+    if (!splash) return;
+    setTimeout(function () {
+      splash.classList.add('ukryty');
+      setTimeout(function () { splash.remove(); }, 400);
+    }, 1000);
+  }
+
   function init() {
     // Statystyki nie mają jeszcze własnego pliku (dopiero faza 2) —
     // zakładka wyszarzona rejestrowana jest tu wprost.
@@ -52,9 +66,14 @@ window.App = (function () {
 
     wstrzyknijWersje();
 
+    const gearBtn = document.getElementById('ustawieniaBtn');
+    if (gearBtn) gearBtn.addEventListener('click', function () { przelacz('ustawienia'); });
+
     const pierwszy = widoki.find(function (w) { return w.aktywny; });
     if (pierwszy) przelacz(pierwszy.id);
     else renderNawigacji();
+
+    schowajSplash();
   }
 
   document.addEventListener('DOMContentLoaded', init);

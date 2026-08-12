@@ -6,7 +6,7 @@ jako statyczna strona.
 
 Projekt hobbystyczny, nie komercyjny. Powstaje przy okazji nauki [Claude Code](https://claude.com/claude-code).
 
-**Wersja:** 0.9.2
+**Wersja:** 0.9.5
 
 ## Co potrafi
 
@@ -18,6 +18,19 @@ Projekt hobbystyczny, nie komercyjny. Powstaje przy okazji nauki [Claude Code](h
 - **Historia** — lista sesji grupowana rok / miesiąc, podgląd splitów, kopiowanie do Excela.
 - **Ustawienia** — kopia zapasowa i eksport/import JSON (scalanie po `id`, bez duplikatów),
   edycja i masowe usuwanie sesji.
+
+## Pod telefon
+
+Apka powstała z myślą o wpisywaniu czasów na basenie, więc telefon jest tu pierwszym ekranem,
+nie wersją „też działa":
+
+- **Własna klawiatura numeryczna** zamiast systemowej — na iOS natywna klawiatura zasłaniała
+  pół ekranu przy każdym z kilkunastu splitów na trening. Na komputerze pola zostają zwykłymi
+  polami tekstowymi (wpisywanie z klawiatury + Enter), blokada włącza się tylko na dotyku.
+- **Stały układ w trakcie treningu** — karty sesji, podsumowania i pole wpisywania stoją
+  w miejscu, przewija się wyłącznie lista splitów.
+- **Bezpieczny margines na notch** (`env(safe-area-inset-top)`), ikona na ekran początkowy
+  i ekran startowy z logo po uruchomieniu.
 
 ## Uruchomienie lokalne
 
@@ -48,14 +61,19 @@ backendu to jeden plik.
 ```
 index.html              szkielet + rejestracja skryptów
 css/style.css           warstwa wizualna „Navy Pool" (ciemny motyw)
+icon/                   ikony aplikacji (ekran początkowy iOS)
 js/wersja.js            numer wersji (jedno źródło prawdy dla UI)
-js/app.js               router zakładek, rejestr widoków
+js/app.js               router zakładek, rejestr widoków, ekran startowy
 js/dane.js              warstwa danych — jedyne miejsce dotykające localStorage
 js/model.js             obliczenia na sesji, parsowanie czasów, eksport do Excela
+js/keypad.js            klawiatura numeryczna zastępująca systemową na dotyku
 js/plan.js              treść planu treningowego (same dane, zero DOM)
 js/sesja-tabela.js      wspólna tabela splitów (podgląd + edycja)
 js/tracker.js           js/plan-widok.js   js/historia.js   js/ustawienia.js  — widoki
 ```
+
+Kolejność `<script>` w `index.html` jest znacząca — to klasyczne skrypty bez modułów,
+każdy eksportuje dokładnie jeden obiekt do `window`.
 
 ## Wsparcie przeglądarek
 

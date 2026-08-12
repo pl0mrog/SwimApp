@@ -16,6 +16,8 @@ window.SesjaTabela = (function () {
     stan.sesja = sesja;
     stan.edytowalna = !!opts.edytowalna;
     stan.onZmiana = opts.onZmiana || function () {};
+    // Tracker pokazuje kafelki z zerami i zachętę zamiast "Brak splitów"
+    stan.pustyTekst = opts.pustyTekst || null;
     if (!stan.edytowalna) stan.trybEdycji = false;
     rysuj(kontener, stan);
   }
@@ -34,7 +36,7 @@ window.SesjaTabela = (function () {
     etykieta.className = 'section-label';
     etykieta.textContent = 'Podsumowanie';
     naglowek.appendChild(etykieta);
-    if (stan.edytowalna) {
+    if (stan.edytowalna && splity.length) {
       const btnEdytuj = document.createElement('button');
       btnEdytuj.className = 'small';
       btnEdytuj.textContent = stan.trybEdycji ? 'Gotowe' : 'Edytuj';
@@ -46,7 +48,7 @@ window.SesjaTabela = (function () {
     }
     karta.appendChild(naglowek);
 
-    if (!splity.length) {
+    if (!splity.length && (sesja.recznyDystans != null || !stan.pustyTekst)) {
       const brak = document.createElement('p');
       brak.className = 'hint';
       brak.textContent = sesja.recznyDystans != null
@@ -65,6 +67,16 @@ window.SesjaTabela = (function () {
       komorkaSum('Pływanie', Model.fmtCzas(Model.czasPlywania(sesja)), '') +
       komorkaSum('Przerwy', Model.fmtCzas(Model.czasPrzerw(sesja)), '');
     karta.appendChild(grid);
+
+    // Sesja rozpoczęta, ale bez splitów — kafelki z zerami + zachęta zamiast tabeli
+    if (!splity.length) {
+      const pusty = document.createElement('p');
+      pusty.className = 'hint tabela-pusta';
+      pusty.textContent = stan.pustyTekst;
+      karta.appendChild(pusty);
+      kontener.appendChild(karta);
+      return;
+    }
 
     const wrap = document.createElement('div');
     wrap.className = 'tbl-wrap';
@@ -94,6 +106,13 @@ window.SesjaTabela = (function () {
 
     wrap.appendChild(tabela);
     karta.appendChild(wrap);
+
+    if (stan.trybEdycji) {
+      const dock = document.createElement('div');
+      dock.className = 'keypad-dock';
+      dock.id = 'tabelaKeypadDock';
+      karta.appendChild(dock);
+    }
 
     const blad = document.createElement('div');
     blad.className = 'err-msg';
@@ -297,6 +316,8 @@ window.SesjaTabela = (function () {
       input.maxLength = 4;
       input.value = opcje.sekundy != null ? Model.secNaCyfry(opcje.sekundy) : '';
       td.appendChild(input);
+      const dock = kontener.querySelector('#tabelaKeypadDock');
+      if (dock) Keypad.mountOnFocus(input, dock);
       input.focus();
       input.select();
 
@@ -315,6 +336,11 @@ window.SesjaTabela = (function () {
         if (sek === null) {
           input.classList.add('err');
           pokazBlad(kontener, 'Nieprawidłowy czas — sekundy nie mogą być ≥ 60.');
+          return;
+        }
+        if (sek === 0) {
+          input.classList.add('err');
+          pokazBlad(kontener, 'Czas nie może być zerowy — wyczyść pole, jeśli chcesz usunąć wartość.');
           return;
         }
         if (opcje.minWiekszeNiz != null && sek <= opcje.minWiekszeNiz) {

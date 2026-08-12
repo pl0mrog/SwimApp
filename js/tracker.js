@@ -6,7 +6,14 @@ window.Tracker = (function () {
   let zakonczony = false;
   let zapisany = false;
   let kontenerGlobalny = null;
+  // Zanim użytkownik kliknie "Dodaj nową sesję" Tracker pokazuje sam ekran startowy.
+  let sesjaRozpoczeta = false;
+  // Rozwinięta na starcie sesji (jest miejsce, można ustawić basen/tag), zwijana
+  // automatycznie po pierwszym splicie — inaczej zjadałaby wysokość listy splitów.
   let sesjaRozwinieta = true;
+  let heroZwiniety = false;
+  let komunikatStartu = '';
+  let endPromptOtwarty = false;
   let przerwaAktywna = false;
   let milestoneOtwarty = null;
   let wlasnyTagAktywny = false;
@@ -40,16 +47,62 @@ window.Tracker = (function () {
     kontenerGlobalny = null;
   }
 
+  function startCardHtml() {
+    return '<div class="card start-card">' +
+      '<div class="section-label">Nowa sesja</div>' +
+      (komunikatStartu ? '<p class="start-komunikat">' + komunikatStartu + '</p>' : '') +
+      '<p class="hint">Wpisujesz czasy kolejnych 100 m — dystans, sumy i tempo apka policzy sama.</p>' +
+      '<div class="btn-row"><button class="primary" id="startBtn">Dodaj nową sesję</button></div>' +
+    '</div>';
+  }
+
+  function renderStart(kontener) {
+    kontener.innerHTML = '<div class="view-scroll">' + startCardHtml() + '</div>';
+    komunikatStartu = '';   // pokazujemy raz, po powrocie z zapisanego treningu
+    kontener.querySelector('#startBtn').addEventListener('click', function () {
+      sesja = sesjaPusta();
+      zakonczony = false;
+      zapisany = false;
+      milestoneOtwarty = null;
+      przerwaAktywna = false;
+      sesjaRozwinieta = true;
+      heroZwiniety = false;
+      sesjaRozpoczeta = true;
+      render();
+    });
+  }
+
+  // Przypinanie kart ma sens tylko przy szybkim dopisywaniu splitów. Przed
+  // pierwszym splitem, przy otwartym dialogu (milestone/koniec) i po zakończeniu
+  // treningu na ekranie jest więcej treści niż miejsca — wtedy zwykłe przewijanie.
+  function czyLuznyUklad() {
+    return zakonczony || !sesja.splity.length || milestoneOtwarty !== null || endPromptOtwarty;
+  }
+
+  function odswiezUklad(kontener) {
+    const layout = kontener.querySelector('.tracker-layout');
+    if (layout) layout.classList.toggle('luzny', czyLuznyUklad());
+  }
+
   function render() {
     const kontener = kontenerGlobalny;
+    if (!sesjaRozpoczeta) { renderStart(kontener); return; }
+    // Układ: karty Sesja/banery i "w wodzie" stoją w miejscu, przewija się
+    // wyłącznie lista splitów w środku (#summaryArea → .tbl-wrap).
     kontener.innerHTML =
-      '<div class="view-scroll">' +
-        sesjaCardHtml() +
-        '<div id="milestoneArea"></div>' +
-        '<div id="endArea"></div>' +
-        '<div id="summaryArea"></div>' +
-        heroHtml() +
-        '<div id="exportArea"></div>' +
+      '<div class="tracker-layout' + (czyLuznyUklad() ? ' luzny' : '') + '">' +
+        '<div class="tracker-fixed">' +
+          sesjaCardHtml() +
+          '<div id="milestoneArea"></div>' +
+          '<div id="endArea"></div>' +
+        '</div>' +
+        '<div class="tracker-splity">' +
+          '<div id="summaryArea"></div>' +
+          '<div id="exportArea"></div>' +
+        '</div>' +
+        '<div class="tracker-fixed">' +
+          heroHtml() +
+        '</div>' +
       '</div>' +
       footerHtml();
 
@@ -63,7 +116,7 @@ window.Tracker = (function () {
   function sesjaCardHtml() {
     const czyPreset = PRESETY_TAGOW.indexOf(sesja.tag) !== -1;
     wlasnyTagAktywny = !czyPreset;
-    return '<div class="card">' +
+    return '<div class="card sesja-card">' +
       '<div class="sesja-head" id="sesjaHead">' +
         '<div class="sesja-head-txt">' +
           '<div class="section-label">Sesja</div>' +
@@ -92,6 +145,7 @@ window.Tracker = (function () {
           '<input type="text" id="manualCzas" placeholder="czas np. 3237 (opcjonalnie)" maxlength="4">' +
           '<button class="small" id="manualZapisz">Zapisz</button>' +
         '</div>' +
+        '<div class="keypad-dock" id="manualKeypadDock"></div>' +
         '<div class="err-msg" id="manualMsg"></div>' +
       '</div>' +
     '</div>';
@@ -150,11 +204,28 @@ window.Tracker = (function () {
     });
     tagInny.addEventListener('input', function () { sesja.tag = tagInny.value; });
 
+    const manualDystans = kontener.querySelector('#manualDystans');
+    const manualCzas = kontener.querySelector('#manualCzas');
+    const manualDock = kontener.querySelector('#manualKeypadDock');
+    Keypad.mountOnFocus(manualDystans, manualDock);
+    Keypad.mountOnFocus(manualCzas, manualDock);
+
     const manualCb = kontener.querySelector('#manualCb');
     const manualRow = kontener.querySelector('#manualRow');
     manualCb.addEventListener('change', function () {
       manualRow.style.display = manualCb.checked ? '' : 'none';
-      if (manualCb.checked) kontener.querySelector('#manualDystans').focus();
+      if (manualCb.checked) {
+        manualDystans.focus();
+      } else {
+        // odznaczenie czyści wpisane wartości i chowa klawiaturę — inaczej
+        // zostawałaby otwarta pod schowanym formularzem
+        manualDystans.value = '';
+        manualCzas.value = '';
+        manualDystans.classList.remove('err');
+        manualCzas.classList.remove('err');
+        manualDock.innerHTML = '';
+        kontener.querySelector('#manualMsg').textContent = '';
+      }
     });
 
     kontener.querySelector('#manualZapisz').addEventListener('click', function () { zapiszTreningReczny(kontener); });
@@ -170,15 +241,30 @@ window.Tracker = (function () {
   // ===== hero stat block (§5.2) =====
 
   function heroHtml() {
-    return '<div class="card">' +
+    return '<div class="card hero-card">' +
+      '<span class="chevron hero-chevron' + (heroZwiniety ? '' : ' open') + '" id="heroChevron">▾</span>' +
       '<div class="hero-status" id="heroStatus"></div>' +
-      '<div class="hero-main">' +
+      '<div class="hero-main" id="heroMain"' + (heroZwiniety ? ' style="display:none;"' : '') + '>' +
         '<span class="hero-num" id="heroNum">0</span><span class="hero-unit">m</span>' +
         '<span class="hero-elapsed" id="heroElapsed"></span>' +
       '</div>' +
+      '<div class="hero-times" id="heroTimes"></div>' +
       '<div class="hero-bar" id="heroBar"></div>' +
       '<div class="hero-scale" id="heroScale"></div>' +
     '</div>';
+  }
+
+  function wireHero(kontener) {
+    const chevron = kontener.querySelector('#heroChevron');
+    if (!chevron) return;
+    chevron.addEventListener('click', function () {
+      heroZwiniety = !heroZwiniety;
+      const main = kontener.querySelector('#heroMain');
+      const status = kontener.querySelector('#heroStatus');
+      if (main) main.style.display = heroZwiniety ? 'none' : '';
+      if (status) status.style.display = heroZwiniety ? 'none' : '';
+      chevron.classList.toggle('open', !heroZwiniety);
+    });
   }
 
   // Czas zbiorczy wpisany dla danego progu (milestone albo koniec treningu dokładnie na tym dystansie).
@@ -192,7 +278,7 @@ window.Tracker = (function () {
     if (zapisany) return 'sesja zapisana';
     if (zakonczony) return 'trening zakończony';
     if (milestoneOtwarty) return 'milestone ' + milestoneOtwarty + ' m';
-    return 'w wodzie';
+    return '';
   }
 
   function odswiezHero(kontener) {
@@ -203,7 +289,9 @@ window.Tracker = (function () {
     if (!statusEl) return;
 
     const dist = swimDist();
-    statusEl.textContent = statusTekst();
+    const status = statusTekst();
+    statusEl.textContent = status;
+    statusEl.classList.toggle('empty', !status);
     numEl.textContent = String(dist);
     const elapsed = zakonczony ? sesja.koniec.sec : Model.czasRazem(sesja);
     elapsedEl.textContent = elapsed ? Model.fmtCzas(elapsed) : '';
@@ -220,16 +308,24 @@ window.Tracker = (function () {
     }
     barEl.innerHTML = bar;
 
+    // Czas zbiorczy siada dokładnie nad pastylką kończącą dany dystans:
+    // pastylka o indeksie (d/100 - 1) zajmuje pas [i/n, (i+1)/n] szerokości paska.
     const scaleEl = kontener.querySelector('#heroScale');
+    const timesEl = kontener.querySelector('#heroTimes');
+    const progi = [0, CEL_DOMYSLNY / 4, CEL_DOMYSLNY / 2, CEL_DOMYSLNY * 3 / 4, CEL_DOMYSLNY];
+    if (timesEl) {
+      timesEl.innerHTML = progi.map(function (d) {
+        const sek = d > 0 ? tickCzas(d) : null;
+        if (sek == null) return '';
+        const srodek = ((d / 100 - 1) + 0.5) / segmenty * 100;
+        return '<span class="hero-time" style="left:' + srodek.toFixed(3) + '%;">' +
+          Model.fmtCzas(sek) + '</span>';
+      }).join('');
+    }
     if (scaleEl) {
-      const progi = [0, CEL_DOMYSLNY / 4, CEL_DOMYSLNY / 2, CEL_DOMYSLNY * 3 / 4, CEL_DOMYSLNY];
       scaleEl.innerHTML = progi.map(function (d, i) {
-        const sek = tickCzas(d);
         const etykieta = i === progi.length - 1 ? d + 'm' : String(d);
-        return '<span class="hero-tick">' +
-          '<span class="hero-scale-time">' + (sek != null ? Model.fmtCzas(sek) : '') + '</span>' +
-          '<span>' + etykieta + '</span>' +
-        '</span>';
+        return '<span class="hero-tick">' + etykieta + '</span>';
       }).join('');
     }
   }
@@ -238,10 +334,13 @@ window.Tracker = (function () {
 
   function wireStatyczne(kontener) {
     wireSesjaCard(kontener);
+    wireHero(kontener);
 
     const mainInput = kontener.querySelector('#mainInput');
     const przerwaBtn = kontener.querySelector('#przerwaBtn');
     const preview = kontener.querySelector('#preview');
+
+    Keypad.mountInline(kontener.querySelector('#mainKeypadDock'), mainInput);
 
     mainInput.addEventListener('input', function () {
       const str = mainInput.value.replace(/[^0-9]/g, '');
@@ -284,6 +383,7 @@ window.Tracker = (function () {
           '<button type="button" class="toggle-btn' + (przerwaAktywna ? ' active' : '') + '" id="przerwaBtn">przerwa</button>' +
         '</div>' +
         '<div class="panel-preview"><span class="preview" id="preview"></span><span class="panel-err err-msg" id="errMsg"></span></div>' +
+        '<div class="keypad-dock" id="mainKeypadDock"></div>' +
         '<div class="panel-buttons">' +
           '<button class="btn-secondary" id="secondaryBtn">Koniec</button>' +
           '<button class="primary btn-primary" id="dodajBtn">Dodaj 100 m</button>' +
@@ -307,9 +407,11 @@ window.Tracker = (function () {
     let czasSec = null;
     if (czasInp.value.trim()) {
       czasSec = Model.parsujCzas(czasInp.value);
-      if (czasSec === null) {
+      if (czasSec === null || czasSec === 0) {
         czasInp.classList.add('err');
-        kontener.querySelector('#manualMsg').textContent = 'Nieprawidłowy czas – sekundy nie mogą być ≥ 60.';
+        kontener.querySelector('#manualMsg').textContent = czasSec === 0
+          ? 'Czas nie może być zerowy.'
+          : 'Nieprawidłowy czas – sekundy nie mogą być ≥ 60.';
         return;
       }
     }
@@ -333,13 +435,9 @@ window.Tracker = (function () {
     dok.ustawienia.ostatniBasen = sesja.basen;
     Dane.zapisz(dok);
 
-    sesja = sesjaPusta();
-    zakonczony = false;
-    zapisany = false;
-    milestoneOtwarty = null;
-    przerwaAktywna = false;
-    render();
-    pokazZapisMsg(kontener, 'Zapisano trening ręczny (' + dystansM + 'm' + (czasSec != null ? ', ' + Model.fmtCzas(czasSec) : '') + ').');
+    komunikatStartu = 'Zapisano trening ręczny (' + dystansM + 'm' +
+      (czasSec != null ? ', ' + Model.fmtCzas(czasSec) : '') + ').';
+    resetTrening();
   }
 
   function setErr(kontener, msg) {
@@ -353,8 +451,10 @@ window.Tracker = (function () {
     if (zakonczony) return;
     const inp = kontener.querySelector('#mainInput');
     const sec = Model.parsujCzas(inp.value);
-    if (sec === null) {
-      setErr(kontener, 'Nieprawidłowy czas – sprawdź czy sekundy są < 60');
+    if (sec === null || sec === 0) {
+      setErr(kontener, sec === 0
+        ? 'Czas nie może być zerowy.'
+        : 'Nieprawidłowy czas – sprawdź czy sekundy są < 60');
       inp.classList.add('err');
       setTimeout(function () { inp.classList.remove('err'); }, 1500);
       return;
@@ -366,6 +466,15 @@ window.Tracker = (function () {
       ostatni.przerwa = sec;
     } else {
       sesja.splity.push({ sec: sec, przerwa: null });
+      // pierwszy split = koniec ustawiania parametrów; zwijamy kartę Sesja,
+      // żeby zwolnić miejsce na listę splitów
+      if (sesja.splity.length === 1 && sesjaRozwinieta) {
+        sesjaRozwinieta = false;
+        const body = kontener.querySelector('#sesjaBody');
+        const chevron = kontener.querySelector('#sesjaChevron');
+        if (body) body.style.display = 'none';
+        if (chevron) chevron.classList.remove('open');
+      }
       const nowyDystans = swimDist();
       if (Model.MILESTONES.indexOf(nowyDystans) !== -1 && !sesja.zbiorcze[String(nowyDystans)]) {
         pokazMilestone(kontener, nowyDystans);
@@ -394,11 +503,16 @@ window.Tracker = (function () {
           '<button class="small" id="msZapisz">Zapisz</button>' +
           '<button class="small" id="msPomin">Pomiń</button>' +
         '</div>' +
+        '<div class="keypad-dock" id="msKeypadDock"></div>' +
         '<div class="err-msg" id="msBlad"></div>' +
       '</div>';
+    odswiezUklad(kontener);
     const swimInp = area.querySelector('#msSwim');
     const restInp = area.querySelector('#msRest');
     const blad = area.querySelector('#msBlad');
+    const msDock = area.querySelector('#msKeypadDock');
+    Keypad.mountOnFocus(swimInp, msDock);
+    Keypad.mountOnFocus(restInp, msDock);
     swimInp.focus();
 
     function zamknij() {
@@ -411,7 +525,12 @@ window.Tracker = (function () {
       const swimSec = Model.parsujCzas(swimInp.value);
       const restVal = restInp.value;
       const restSec = restVal ? Model.parsujCzas(restVal) : null;
-      if (swimSec === null) { swimInp.classList.add('err'); return; }
+      if (swimSec === null || swimSec === 0) {
+        swimInp.classList.add('err');
+        blad.textContent = swimSec === 0 ? 'Czas nie może być zerowy.' : 'Nieprawidłowy czas — sekundy nie mogą być ≥ 60.';
+        return;
+      }
+      swimInp.classList.remove('err');
       if (restVal && restSec === null) { restInp.classList.add('err'); blad.textContent = 'Nieprawidłowy czas — sekundy nie mogą być ≥ 60.'; return; }
       if (restVal && restSec <= swimSec) {
         restInp.classList.add('err');
@@ -437,26 +556,39 @@ window.Tracker = (function () {
 
   function pokazEndPrompt(kontener) {
     if (zakonczony) return;
+    endPromptOtwarty = true;
     const sd = swimDist();
     const area = kontener.querySelector('#endArea');
     area.innerHTML =
       '<div class="banner">' +
-        '<div class="banner-title">Koniec treningu (' + sd + 'm)</div>' +
-        '<div class="banner-desc">Wpisz łączny czas</div>' +
+        '<div class="banner-head">' +
+          '<div>' +
+            '<div class="banner-title">Koniec treningu (' + sd + 'm)</div>' +
+            '<div class="banner-desc">Wpisz łączny czas</div>' +
+          '</div>' +
+          '<div class="banner-btn-row">' +
+            '<button class="small primary" id="endZapisz">Zapisz</button>' +
+            '<button class="small" id="endCofnij">Cofnij</button>' +
+            '<button class="small danger" id="endAnulujTrening">Anuluj trening</button>' +
+          '</div>' +
+        '</div>' +
         '<div class="inputs">' +
           '<input type="text" id="endTime" placeholder="3237" maxlength="4">' +
-          '<button class="small" id="endZapisz">Zapisz</button>' +
-          '<button class="small" id="endAnuluj">Anuluj</button>' +
         '</div>' +
+        '<div class="keypad-dock" id="endKeypadDock"></div>' +
       '</div>';
     const inp = area.querySelector('#endTime');
+    Keypad.mountOnFocus(inp, area.querySelector('#endKeypadDock'));
+    odswiezUklad(kontener);
     inp.focus();
 
     function zapisz() {
       const sec = Model.parsujCzas(inp.value);
-      if (sec === null) { inp.classList.add('err'); return; }
+      if (sec === null || sec === 0) { inp.classList.add('err'); return; }
+      inp.classList.remove('err');
       sesja.koniec = { sec: sec };
       zakonczony = true;
+      endPromptOtwarty = false;
       area.innerHTML = '';
       odswiezDynamiczne(kontener);
       showExport(kontener);
@@ -464,7 +596,12 @@ window.Tracker = (function () {
 
     inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); zapisz(); } });
     area.querySelector('#endZapisz').addEventListener('click', zapisz);
-    area.querySelector('#endAnuluj').addEventListener('click', function () { area.innerHTML = ''; });
+    area.querySelector('#endCofnij').addEventListener('click', function () {
+      endPromptOtwarty = false;
+      area.innerHTML = '';
+      odswiezDynamiczne(kontener);
+    });
+    area.querySelector('#endAnulujTrening').addEventListener('click', anulujTrening);
   }
 
   function cofnijZakonczenie(kontener) {
@@ -530,14 +667,25 @@ window.Tracker = (function () {
     });
   }
 
-  function nowyTrening() {
-    if (sesja.splity.length && !confirm('Zresetować dane treningu? Niezapisane dane zostaną utracone.')) return;
+  function resetTrening() {
     sesja = sesjaPusta();
     zakonczony = false;
     zapisany = false;
     milestoneOtwarty = null;
     przerwaAktywna = false;
+    endPromptOtwarty = false;
+    sesjaRozpoczeta = false;   // z powrotem na ekran startowy
     render();
+  }
+
+  function nowyTrening() {
+    if (sesja.splity.length && !confirm('Zresetować dane treningu? Niezapisane dane zostaną utracone.')) return;
+    resetTrening();
+  }
+
+  function anulujTrening() {
+    if (!confirm('Anulować cały trening? Wszystkie wpisane splity zostaną utracone.')) return;
+    resetTrening();
   }
 
   function panelTargetTekst() {
@@ -548,6 +696,8 @@ window.Tracker = (function () {
   function odswiezDynamiczne(kontener) {
     odswiezHero(kontener);
 
+    odswiezUklad(kontener);
+
     const sesjaSummary = kontener.querySelector('#sesjaSummary');
     if (sesjaSummary) sesjaSummary.textContent = sesjaSummaryTekst();
 
@@ -555,7 +705,11 @@ window.Tracker = (function () {
     const manualRow = kontener.querySelector('#manualRow');
     const ukryjManualny = sesja.splity.length > 0 || zakonczony;
     if (manualCbWrap) manualCbWrap.style.display = ukryjManualny ? 'none' : '';
-    if (ukryjManualny && manualRow) manualRow.style.display = 'none';
+    if (ukryjManualny && manualRow) {
+      manualRow.style.display = 'none';
+      const manualDock = kontener.querySelector('#manualKeypadDock');
+      if (manualDock) manualDock.innerHTML = '';
+    }
 
     const mainInput = kontener.querySelector('#mainInput');
     if (mainInput) mainInput.disabled = zakonczony;
@@ -591,14 +745,11 @@ window.Tracker = (function () {
 
     const tabelaKontener = kontener.querySelector('#summaryArea');
     if (tabelaKontener) {
-      if (sesja.splity.length) {
-        SesjaTabela.render(tabelaKontener, sesja, {
-          edytowalna: !zapisany,
-          onZmiana: function (nowaSesja) { sesja = nowaSesja; odswiezDynamiczne(kontener); }
-        });
-      } else {
-        tabelaKontener.innerHTML = '';
-      }
+      SesjaTabela.render(tabelaKontener, sesja, {
+        edytowalna: !zapisany,
+        pustyTekst: 'Dodaj czas pierwszego splitu — pojawi się tutaj.',
+        onZmiana: function (nowaSesja) { sesja = nowaSesja; odswiezDynamiczne(kontener); }
+      });
     }
 
     updateExportValue(kontener);

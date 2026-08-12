@@ -190,6 +190,9 @@ window.PlanWidok = (function () {
     nr.textContent = 'Tydzień ' + tydzien.numer;
     wiersz.appendChild(nr);
 
+    const treningiRow = document.createElement('div');
+    treningiRow.className = 'plan-treningi-row';
+
     tydzien.treningi.forEach(function (trening) {
       const klucz = Plan.kluczTreningu(tydzien.numer, trening.wariant);
       const label = document.createElement('label');
@@ -203,8 +206,10 @@ window.PlanWidok = (function () {
       span.title = 'tempo ' + trening.tempo + ', przerwa ' + trening.przerwa + ' s';
       label.appendChild(cb);
       label.appendChild(span);
-      wiersz.appendChild(label);
+      treningiRow.appendChild(label);
     });
+
+    wiersz.appendChild(treningiRow);
 
     return wiersz;
   }
