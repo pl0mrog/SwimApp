@@ -43,36 +43,48 @@ window.App = (function () {
     renderNawigacji();
   }
 
+  // Realna szerokość suwaka — CSS jej nie zna, a musi się zgadzać co do piksela
+  // z rynną rezerwowaną przez `scrollbar-gutter:stable` (patrz --sb w style.css).
+  // Sonda dostaje klasę `.view-scroll`, a nie własne style: szerokość suwaka zależy
+  // i od `scrollbar-width:thin`, i od `scrollbar-color` (własny kolor wyłącza w Chromium
+  // suwaki nakładkowe). Kopiowanie tych wartości do JS rozjechałoby się przy zmianie CSS.
+  // Na dotyku suwaki są nakładkowe i pomiar wychodzi 0 — reguły z --sb i tak tam nie działają.
+  function zmierzSuwak() {
+    const sonda = document.createElement('div');
+    sonda.className = 'view-scroll';
+    sonda.style.cssText = 'position:absolute;top:-9999px;width:100px;height:100px;overflow-y:scroll;';
+    document.body.appendChild(sonda);
+    const szerokosc = sonda.offsetWidth - sonda.clientWidth;
+    document.body.removeChild(sonda);
+    document.documentElement.style.setProperty('--sb', szerokosc + 'px');
+  }
+
   function wstrzyknijWersje() {
     document.getElementById('wersja').textContent = 'v' + window.APP_VERSION;
     document.title = 'SwimApp – v' + window.APP_VERSION;
   }
 
-  // Pasek ładowania na ekranie startowym: co sekundę zapala się kolejna z czterech
-  // pierwszych pastylek (kolory jak w logo — trzy kobaltowe, czwarta błękitna),
-  // sekundę po ostatniej ekran gaśnie. Element usuwamy dopiero po animacji,
-  // żeby nie przechwytywał kliknięć w przezroczystym stanie.
-  const KROK_PASKA_MS = 1000;
-  const PASTYLKI_PASKA = 4;
+  // Animacja ekranu startowego (zalewanie pastylek + napis) siedzi w CSS i startuje
+  // razem z pierwszym rysowaniem strony — tutaj zostaje samo chowanie ekranu.
+  // ANIMACJA_MS to moment zapalenia ostatniej pastylki (musi się zgadzać z opóźnieniami
+  // w .splash-bar), PAUZA_MS — jak długo trzymamy gotowy ekran. Element usuwamy dopiero
+  // po wygaszeniu, żeby nie przechwytywał kliknięć w przezroczystym stanie.
+  const ANIMACJA_MS = 1700;
+  const PAUZA_MS = 1000;
 
   function schowajSplash() {
     const splash = document.getElementById('splash');
     if (!splash) return;
-    const pastylki = splash.querySelectorAll('.splash-bar i');
-
-    for (let i = 0; i < PASTYLKI_PASKA; i++) {
-      setTimeout(function (idx) {
-        return function () {
-          const p = pastylki[idx];
-          if (p) p.classList.add(idx === PASTYLKI_PASKA - 1 ? 'on-info' : 'on');
-        };
-      }(i), (i + 1) * KROK_PASKA_MS);
-    }
-
+    // Animacja CSS rusza z pierwszym rysowaniem, a ten kod dopiero na DOMContentLoaded
+    // (kilkaset ms później przy wolnym CSS fontów) — odliczamy od jej realnego czasu,
+    // żeby pauza po ostatniej pastylce nie rosła.
+    const zalewanie = splash.querySelector('.splash-fill');
+    const animacja = zalewanie && zalewanie.getAnimations ? zalewanie.getAnimations()[0] : null;
+    const uplynelo = animacja && animacja.currentTime ? animacja.currentTime : 0;
     setTimeout(function () {
       splash.classList.add('ukryty');
       setTimeout(function () { splash.remove(); }, 400);
-    }, (PASTYLKI_PASKA + 1) * KROK_PASKA_MS);
+    }, Math.max(0, ANIMACJA_MS + PAUZA_MS - uplynelo));
   }
 
   function init() {
@@ -80,6 +92,7 @@ window.App = (function () {
     // zakładka wyszarzona rejestrowana jest tu wprost.
     zarejestrujWidok({ id: 'statystyki', etykieta: 'Statystyki', aktywny: false });
 
+    zmierzSuwak();
     wstrzyknijWersje();
 
     const gearBtn = document.getElementById('ustawieniaBtn');

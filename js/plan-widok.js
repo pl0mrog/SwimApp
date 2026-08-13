@@ -93,18 +93,18 @@ window.PlanWidok = (function () {
 
     karta.innerHTML =
       '<div class="section-label">Następny trening</div>' +
-      '<div class="plan-dzis-tytul">Tydzień ' + tydzien.numer + ' / ' + lista.length +
-        '  ·  Trening ' + t.wariant + ' — ' + t.nazwa + '</div>' +
+      '<div class="plan-dzis-tytul">Tydzień ' + tydzien.numer + '/' + lista.length + '</div>' +
+      '<div class="plan-dzis-nazwa">Trening ' + t.wariant + ' — ' + t.nazwa + '</div>' +
       '<div class="plan-dzis-faza">' + tydzien.nazwaFazy + '</div>' +
       '<div class="sum-grid">' +
-        kafel('Rozgrzewka', t.rozgrzewka + ' m') +
+        kafel('Tempo', t.tempo, 'sum-cell-swim') +
+        kafel('Przerwa', t.przerwa + ' s', 'sum-cell-swim') +
         kafel('Seria główna', opisSerii(t)) +
-        kafel('Schłodzenie', t.schlodzenie + ' m') +
         kafel('Suma', Plan.suma(t) + ' m') +
       '</div>' +
-      '<div class="plan-dzis-tempo">tempo ' + t.tempo + '  ·  przerwa ' + t.przerwa + ' s</div>' +
+      '<div class="plan-dzis-tempo">rozgrzewka ' + t.rozgrzewka + ' m  ·  schłodzenie ' + t.schlodzenie + ' m</div>' +
       (t.uwaga ? '<p class="hint">' + t.uwaga + '</p>' : '') +
-      '<div class="btn-row"><button class="primary" id="planZrobioneBtn">Zrobione ✓</button></div>';
+      '<div class="btn-row"><button class="primary" id="planZrobioneBtn">Zrobione</button></div>';
 
     karta.querySelector('#planZrobioneBtn').addEventListener('click', function () {
       ustawWykonanie(Plan.kluczTreningu(tydzien.numer, t.wariant), true);
@@ -113,8 +113,9 @@ window.PlanWidok = (function () {
     return karta;
   }
 
-  function kafel(etykieta, wartosc) {
-    return '<div class="sum-cell">' +
+  // klasaDodatkowa: 'sum-cell-swim' = kobaltowy wariant kafelka (jak Dystans/Suma w Trackerze)
+  function kafel(etykieta, wartosc, klasaDodatkowa) {
+    return '<div class="sum-cell' + (klasaDodatkowa ? ' ' + klasaDodatkowa : '') + '">' +
       '<div class="sum-cell-label">' + etykieta + '</div>' +
       '<div class="sum-cell-val">' + wartosc + '</div>' +
     '</div>';

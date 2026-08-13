@@ -6,13 +6,14 @@ jako statyczna strona.
 
 Projekt hobbystyczny, nie komercyjny. Powstaje przy okazji nauki [Claude Code](https://claude.com/claude-code).
 
-**Wersja:** 0.9.5
+**Wersja:** 0.9.8
 
 ## Co potrafi
 
 - **Tracker** — dodawanie kolejnych setek jednym polem (`155` → `1:55`), automatyczne wykrywanie
   przerw, czasy zbiorcze na progach 500 / 1000 / 1500 / 2000 m, tryb „trening bez splitów"
-  (sam dystans), eksport pojedynczej sesji do wklejenia w Excelu.
+  (sam dystans), ostrzeżenie przy dacie, na którą jest już zapisany trening, eksport pojedynczej
+  sesji do wklejenia w Excelu.
 - **Plan** — 16-tygodniowy plan treningowy z odhaczaniem wykonanych jednostek i kartą
   „następny trening".
 - **Historia** — lista sesji grupowana rok / miesiąc, podgląd splitów, kopiowanie do Excela.
@@ -28,9 +29,13 @@ nie wersją „też działa":
   pół ekranu przy każdym z kilkunastu splitów na trening. Na komputerze pola zostają zwykłymi
   polami tekstowymi (wpisywanie z klawiatury + Enter), blokada włącza się tylko na dotyku.
 - **Stały układ w trakcie treningu** — karty sesji, podsumowania i pole wpisywania stoją
-  w miejscu, przewija się wyłącznie lista splitów.
+  w miejscu, przewija się wyłącznie lista splitów. Pasek podglądu pod polem ma stałą wysokość,
+  więc pojawienie się komunikatu nie przesuwa panelu pod palcem.
+- **Blokada widoku poziomego i przybliżania** — po obróceniu telefonu pełnoekranowy komunikat
+  zamiast rozjechanego układu; wszystkie pola mają 16 px, bo przy mniejszym foncie iOS sam
+  przybliża widok po tapnięciu.
 - **Bezpieczny margines na notch** (`env(safe-area-inset-top)`), ikona na ekran początkowy
-  i ekran startowy z logo po uruchomieniu.
+  i ekran startowy z animowanym paskiem ładowania (~2,7 s, całość na CSS).
 
 ## Uruchomienie lokalne
 

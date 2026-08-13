@@ -9,6 +9,8 @@ window.Ustawienia = (function () {
   let zaznaczoneIdUsun = new Set();
   let trybUsuwania = false;
   let idSesjiEdycji = null;
+  // domyślnie zwinięta — pola ID Gista i tokenu nie mają leżeć na wierzchu
+  let syncRozwinieta = false;
 
   function montuj(kontener) {
     kontenerGlobalny = kontener;
@@ -100,27 +102,43 @@ window.Ustawienia = (function () {
   function renderSynchronizacja() {
     const karta = document.createElement('div');
     karta.className = 'card';
-    karta.innerHTML =
-      '<div class="section-label">Synchronizacja</div>' +
+
+    // zwijanie jak w karcie „Sesja" w Trackerze: tytuł z lewej, obracana strzałka z prawej
+    const naglowek = document.createElement('div');
+    naglowek.className = 'karta-head';
+    const tytul = document.createElement('div');
+    tytul.className = 'section-label';
+    tytul.textContent = 'Synchronizacja';
+    const strzalka = document.createElement('span');
+    strzalka.className = 'chevron' + (syncRozwinieta ? ' open' : '');
+    strzalka.textContent = '▾';
+    naglowek.appendChild(tytul);
+    naglowek.appendChild(strzalka);
+    naglowek.addEventListener('click', function () {
+      syncRozwinieta = !syncRozwinieta;
+      render();
+    });
+    karta.appendChild(naglowek);
+
+    if (!syncRozwinieta) return karta;
+
+    const tresc = document.createElement('div');
+    tresc.style.marginTop = '14px';
+    tresc.innerHTML =
       '<p class="hint" style="margin-top:0;">⚠ Nieskonfigurowane — wklej ID Gista i token</p>' +
       '<div class="input-row">' +
         '<input type="text" id="syncGistId" placeholder="ID Gista" style="flex:1;min-width:0;text-align:left;" ' +
           'autocapitalize="off" autocorrect="off" spellcheck="false" autocomplete="off">' +
       '</div>' +
-      '<div class="input-row" style="flex-wrap:nowrap;">' +
+      '<div class="input-row">' +
         '<input type="password" id="syncToken" placeholder="Token GitHub" ' +
           'autocapitalize="off" autocorrect="off" spellcheck="false" autocomplete="off">' +
-        '<button type="button" class="small" id="syncTokenOko" aria-label="Pokaż/ukryj token">👁</button>' +
       '</div>' +
       '<div class="btn-row" style="margin-top:8px;">' +
         '<button class="primary" id="syncSprawdz">Sprawdź i zapisz</button>' +
         '<button class="small" id="syncUsun">Usuń z urządzenia</button>' +
       '</div>';
-
-    const tokenInp = karta.querySelector('#syncToken');
-    karta.querySelector('#syncTokenOko').addEventListener('click', function () {
-      tokenInp.type = tokenInp.type === 'password' ? 'text' : 'password';
-    });
+    karta.appendChild(tresc);
 
     return karta;
   }

@@ -90,7 +90,7 @@ window.SesjaTabela = (function () {
       // szósta kolumna (usuwanie) potrzebuje własnych szerokości — patrz .tbl-edycja w CSS
       tabela.className = 'tbl-edycja';
       tabela.innerHTML =
-        '<thead><tr><th>Dystans</th><th>Czas 100m</th><th>Przerwa</th><th>Czas zbiorczy</th><th>Zbiorczy + przerwa</th><th></th></tr></thead>';
+        '<thead><tr><th>Dystans</th><th>Czas 100m</th><th>Przerwa</th><th>Czas zbiorczy</th><th>Zbiorczy +&nbsp;przerwa</th><th></th></tr></thead>';
       const tbody = document.createElement('tbody');
 
       tbody.appendChild(wierszWstaw(0, kontener, stan));
@@ -102,7 +102,7 @@ window.SesjaTabela = (function () {
       tabela.appendChild(tbody);
     } else {
       tabela.innerHTML =
-        '<thead><tr><th>Dystans</th><th>Czas 100m</th><th>Przerwa</th><th>Czas zbiorczy</th><th>Zbiorczy + przerwa</th></tr></thead>';
+        '<thead><tr><th>Dystans</th><th>Czas 100m</th><th>Przerwa</th><th>Czas zbiorczy</th><th>Zbiorczy +&nbsp;przerwa</th></tr></thead>';
       const tbody = document.createElement('tbody');
       for (let i = splity.length - 1; i >= 0; i--) {
         tbody.appendChild(wierszSplituOdczyt(sesja, i));

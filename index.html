@@ -23,7 +23,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
 <!-- ?v= wymusza pobranie nowej wersji po deployu (GitHub Pages cachuje agresywnie).
      Przy podbiciu wersji zmień numer TU i w js/wersja.js — patrz CLAUDE.md. -->
-<link rel="stylesheet" href="css/style.css?v=0.9.7">
+<link rel="stylesheet" href="css/style.css?v=0.9.8">
 </head>
 <body>
 <!-- Ekran startowy (Design/SwimApp-assets/splash.html) — chowany przez js/app.js -->
@@ -34,8 +34,12 @@
       <path d="M2 16 Q10 10, 18 16 T34 16" stroke="var(--accent-info)" stroke-width="4.6" stroke-linecap="round"/>
       <path d="M2 24 Q10 18, 18 24 T34 24" stroke="var(--accent-confirm)" stroke-width="4.6" stroke-linecap="round"/>
     </svg>
-    <!-- pastylki startują wygaszone, zapala je po kolei js/app.js -->
-    <div class="splash-bar"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+    <!-- .splash-fill to kolorowa kopia paska przycięta maską — zalewa pastylki od lewej.
+         Całą animację robi CSS (patrz .splash-bar w style.css), js/app.js tylko chowa ekran. -->
+    <div class="splash-bar">
+      <i></i><i></i><i></i><i></i><i></i><i></i>
+      <div class="splash-fill"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+    </div>
   </div>
   <div class="splash-wordmark"><span class="w-swim">Swim</span><span class="w-app">App</span></div>
 </div>
@@ -79,16 +83,16 @@
 
 <main id="widok"></main>
 
-<script src="js/wersja.js?v=0.9.7"></script>
-<script src="js/app.js?v=0.9.7"></script>
-<script src="js/dane.js?v=0.9.7"></script>
-<script src="js/model.js?v=0.9.7"></script>
-<script src="js/keypad.js?v=0.9.7"></script>
-<script src="js/plan.js?v=0.9.7"></script>
-<script src="js/sesja-tabela.js?v=0.9.7"></script>
-<script src="js/tracker.js?v=0.9.7"></script>
-<script src="js/plan-widok.js?v=0.9.7"></script>
-<script src="js/historia.js?v=0.9.7"></script>
-<script src="js/ustawienia.js?v=0.9.7"></script>
+<script src="js/wersja.js?v=0.9.8"></script>
+<script src="js/app.js?v=0.9.8"></script>
+<script src="js/dane.js?v=0.9.8"></script>
+<script src="js/model.js?v=0.9.8"></script>
+<script src="js/keypad.js?v=0.9.8"></script>
+<script src="js/plan.js?v=0.9.8"></script>
+<script src="js/sesja-tabela.js?v=0.9.8"></script>
+<script src="js/tracker.js?v=0.9.8"></script>
+<script src="js/plan-widok.js?v=0.9.8"></script>
+<script src="js/historia.js?v=0.9.8"></script>
+<script src="js/ustawienia.js?v=0.9.8"></script>
 </body>
 </html>

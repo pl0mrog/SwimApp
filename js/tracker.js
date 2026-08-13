@@ -128,6 +128,7 @@ window.Tracker = (function () {
       '</div>' +
       '<div class="sesja-body" id="sesjaBody" style="display:' + (sesjaRozwinieta ? '' : 'none') + ';">' +
         '<div class="param-row"><input type="date" id="metaData" class="chip" title="Data"></div>' +
+        '<div class="err-msg" id="dataMsg"></div>' +
         '<div class="param-row toggle-group" id="basenGroup">' +
           '<button type="button" class="toggle-btn" data-basen="25">25 m</button>' +
           '<button type="button" class="toggle-btn" data-basen="50">50 m</button>' +
@@ -171,8 +172,10 @@ window.Tracker = (function () {
     dataInp.value = sesja.data;
     dataInp.addEventListener('change', function () {
       sesja.data = dataInp.value;
+      odswiezOstrzezenieDaty(kontener);
       odswiezDynamiczne(kontener);
     });
+    odswiezOstrzezenieDaty(kontener);
 
     const basenGroup = kontener.querySelector('#basenGroup');
     ustawAktywny(basenGroup, sesja.basen === 25 ? '25' : '50');
@@ -231,6 +234,15 @@ window.Tracker = (function () {
     });
 
     kontener.querySelector('#manualZapisz').addEventListener('click', function () { zapiszTreningReczny(kontener); });
+  }
+
+  // Ostrzeżenie, nie blokada — duplikat daty sprawdzamy wyłącznie tutaj, w Trackerze.
+  // Import JSON i edycja w Historii mogą mieć dwa treningi z tą samą datą (świadomie).
+  function odswiezOstrzezenieDaty(kontener) {
+    const el = kontener.querySelector('#dataMsg');
+    if (!el) return;
+    const juzJest = Dane.wczytaj().sesje.some(function (s) { return s.data === sesja.data; });
+    el.textContent = juzJest ? 'Jest już zapisany trening z datą ' + sesja.data + '.' : '';
   }
 
   function ustawAktywny(grupa, wartosc) {
@@ -489,6 +501,7 @@ window.Tracker = (function () {
     odswiezDynamiczne(kontener);
   }
 
+  // .ms-form układa to w trzy linijki: czas zbiorczy, czas z przerwą, przyciski
   function pokazMilestone(kontener, dist) {
     milestoneOtwarty = dist;
     const area = kontener.querySelector('#milestoneArea');
@@ -496,13 +509,15 @@ window.Tracker = (function () {
       '<div class="banner">' +
         '<div class="banner-title">Osiągnięto ' + dist + 'm</div>' +
         '<div class="banner-desc">Wpisz czasy zbiorcze</div>' +
-        '<div class="inputs">' +
+        '<div class="ms-form">' +
           '<label>Czas na ' + dist + 'm:</label>' +
           '<input type="text" id="msSwim" placeholder="1148" maxlength="4">' +
           '<label>+ przerwa (opcjonalnie):</label>' +
           '<input type="text" id="msRest" placeholder="105" maxlength="4">' +
-          '<button class="small primary" id="msZapisz">Zapisz</button>' +
-          '<button class="small" id="msPomin">Pomiń</button>' +
+          '<div class="ms-btns">' +
+            '<button class="small primary" id="msZapisz">Zapisz</button>' +
+            '<button class="small" id="msPomin">Pomiń</button>' +
+          '</div>' +
         '</div>' +
         '<div class="keypad-dock" id="msKeypadDock"></div>' +
         '<div class="err-msg" id="msBlad"></div>' +
@@ -562,19 +577,15 @@ window.Tracker = (function () {
     const area = kontener.querySelector('#endArea');
     area.innerHTML =
       '<div class="banner">' +
-        '<div class="banner-head">' +
-          '<div>' +
-            '<div class="banner-title">Koniec treningu (' + sd + 'm)</div>' +
-            '<div class="banner-desc">Wpisz łączny czas</div>' +
-          '</div>' +
-          '<div class="banner-btn-row">' +
-            '<button class="small primary" id="endZapisz">Zapisz</button>' +
-            '<button class="small" id="endCofnij">Cofnij</button>' +
-            '<button class="small danger" id="endAnulujTrening">Anuluj trening</button>' +
-          '</div>' +
-        '</div>' +
+        '<div class="banner-title">Koniec treningu (' + sd + 'm)</div>' +
+        '<div class="banner-desc">Wpisz łączny czas</div>' +
         '<div class="inputs">' +
-          '<input type="text" id="endTime" placeholder="3237" maxlength="4">' +
+          '<input type="text" id="endTime" class="end-input" placeholder="3237" maxlength="4">' +
+        '</div>' +
+        '<div class="banner-btn-row">' +
+          '<button class="small primary" id="endZapisz">Zapisz</button>' +
+          '<button class="small" id="endCofnij">Cofnij</button>' +
+          '<button class="small danger" id="endAnulujTrening">Anuluj trening</button>' +
         '</div>' +
         '<div class="keypad-dock" id="endKeypadDock"></div>' +
       '</div>';

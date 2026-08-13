@@ -22,6 +22,9 @@
   --accent-danger:  oklch(0.7 0.16 25);
   --accent-danger-border: oklch(0.55 0.18 25 / 0.5);
 
+  /* szerokość suwaka — nadpisywana realnym pomiarem w js/app.js (zmierzSuwak) */
+  --sb: 8px;
+
   /* shape */
   --r-sm: 10px; --r-md: 12px; --r-lg: 16px; --r-pill: 999px;
 
@@ -50,12 +53,49 @@ body{
   transition:opacity .35s ease;}
 .splash.ukryty{opacity:0;pointer-events:none;}
 .splash-mark{display:flex;flex-direction:column;align-items:center;gap:14px;}
-.splash-bar{display:flex;gap:3.56px;}
-/* pastylki startują wygaszone; js/app.js zapala cztery pierwsze co sekundę */
-.splash-bar i{width:17.9px;height:9.79px;border-radius:4.9px;background:oklch(1 0 0 / 0.12);transition:background .25s ease;}
-.splash-bar i.on{background:var(--accent-confirm);}
-.splash-bar i.on-info{background:var(--accent-info);}
-.splash-wordmark{font-family:var(--font-display);font-size:34px;font-weight:700;letter-spacing:-0.01em;}
+/* Pasek ładowania: kolor zalewa pastylki od lewej (1700 ms, ostatnia odrobinę wolniej),
+   a każda podskakuje w chwili, gdy zalanie mija jej prawą krawędź. Napis wchodzi razem
+   z czwartą pastylką. Wszystko na CSS i startuje z pierwszym rysowaniem strony —
+   js/app.js tylko chowa ekran po animacji (ANIMACJA_MS + PAUZA_MS). */
+.splash-bar{display:flex;gap:3.56px;position:relative;}
+.splash-bar i{width:17.9px;height:9.79px;border-radius:4.9px;background:oklch(1 0 0 / 0.12);
+  display:block;transform-origin:center;}
+.splash-fill{position:absolute;inset:0;display:flex;gap:3.56px;clip-path:inset(0 100% 0 0);
+  animation:splash-zalewanie 1700ms linear forwards;}
+.splash-fill i{background:var(--accent-confirm);}
+.splash-fill i:nth-child(4){background:var(--accent-info);}
+/* 51.4% = prawa krawędź trzeciej pastylki, 34.5% = czwartej (dalej pasek zostaje wygaszony) */
+@keyframes splash-zalewanie{
+  0%{clip-path:inset(0 100% 0 0);animation-timing-function:linear}
+  70%{clip-path:inset(0 51.4% 0 0);animation-timing-function:cubic-bezier(.35,.6,.5,1)}
+  100%{clip-path:inset(0 34.5% 0 0)}
+}
+/* opóźnienia = zmierzony moment, w którym zalanie mija prawą krawędź danej pastylki */
+.splash-bar > i:nth-child(1){animation:splash-pop 420ms ease forwards 375ms;}
+.splash-bar > i:nth-child(2){animation:splash-pop 420ms ease forwards 790ms;}
+.splash-bar > i:nth-child(3){animation:splash-pop 420ms ease forwards 1210ms;}
+.splash-bar > i:nth-child(4){animation:splash-pop-info 420ms ease forwards 1700ms;}
+/* pastylka pod spodem przejmuje kolor na czas podskoku — powiększona wystawałaby
+   spod przyciętej nakładki i wokół koloru byłaby widoczna wygaszona obwódka */
+@keyframes splash-pop{
+  0%{background:oklch(1 0 0 / 0.12);transform:scale(1)}
+  4%{background:var(--accent-confirm)}
+  35%{transform:scale(1.28,1.56)}
+  75%,100%{background:var(--accent-confirm);transform:scale(1)}
+}
+@keyframes splash-pop-info{
+  0%{background:oklch(1 0 0 / 0.12);transform:scale(1)}
+  4%{background:var(--accent-info)}
+  35%{transform:scale(1.28,1.56)}
+  75%,100%{background:var(--accent-info);transform:scale(1)}
+}
+.splash-wordmark{font-family:var(--font-display);font-size:34px;font-weight:700;letter-spacing:-0.01em;
+  opacity:0;animation:splash-napis 420ms ease forwards 1700ms;}
+@keyframes splash-napis{
+  0%{opacity:0;transform:scale(.82)}
+  55%{opacity:1;transform:scale(1.07)}
+  100%{opacity:1;transform:scale(1)}
+}
 
 /* ===== blokada widoku poziomego (tylko telefon) ===== */
 .rotate-lock{display:none;position:fixed;inset:0;z-index:200;background:var(--navy);
@@ -98,6 +138,14 @@ body{
 #widok{flex:1 1 auto;display:flex;flex-direction:column;overflow:hidden;min-height:0;}
 .view-scroll{flex:1 1 auto;overflow-y:auto;-webkit-overflow-scrolling:touch;min-height:0;
   max-width:680px;margin:0 auto;width:100%;padding:var(--s4) var(--s4) var(--s6);box-sizing:border-box;}
+/* Suwak nie może zwężać kart: rynna rezerwowana na stałe, a karty wsunięte w nią
+   ujemnym marginesem — suwak kładzie się na prawym marginesie karty zamiast ją ścieśniać.
+   Tylko przy myszy: na dotyku suwaki są nakładkowe i `scrollbar-gutter` nic nie robi,
+   a sam ujemny margines rozjechałby karty w prawo. */
+@media (pointer:fine){
+  .view-scroll{scrollbar-gutter:stable;}
+  .view-scroll > *{margin-right:calc(-1 * var(--sb));}
+}
 
 /* ===== tracker: stały układ, przewijają się tylko splity ===== */
 .tracker-layout{flex:1 1 auto;display:flex;flex-direction:column;min-height:0;overflow:hidden;
@@ -116,6 +164,11 @@ body{
 
 /* po zakończeniu treningu: zwykłe przewijanie całości (dochodzi karta eksportu) */
 .tracker-layout.luzny{overflow-y:auto;padding-bottom:var(--s4);}
+/* ta sama sztuczka co w .view-scroll — karty mają nie drgnąć przy przejściu w układ luźny */
+@media (pointer:fine){
+  .tracker-layout.luzny{scrollbar-gutter:stable;}
+  .tracker-layout.luzny > *{margin-right:calc(-1 * var(--sb));}
+}
 .tracker-layout.luzny .tracker-splity{flex:0 0 auto;overflow:visible;}
 .tracker-layout.luzny .tracker-splity > #summaryArea > .card{overflow:visible;}
 .tracker-layout.luzny .tracker-splity .tbl-wrap{overflow-y:visible;min-height:0;}
@@ -140,9 +193,10 @@ body{
 
 /* ===== sesja card (collapsible, §5.1) ===== */
 .sesja-card{padding:9px 16px;}
-.sesja-head{display:flex;align-items:center;justify-content:space-between;gap:10px;cursor:pointer;user-select:none;}
+/* .karta-head = ten sam nagłówek ze strzałką po prawej, użyty poza Trackerem (Ustawienia) */
+.sesja-head,.karta-head{display:flex;align-items:center;justify-content:space-between;gap:10px;cursor:pointer;user-select:none;}
 .sesja-head-txt{display:flex;flex-direction:column;gap:1px;min-width:0;}
-.sesja-head .section-label{margin-bottom:0;}
+.sesja-head .section-label,.karta-head .section-label{margin-bottom:0;}
 .sesja-summary{font-family:var(--font-numeric);font-size:13px;font-weight:700;color:var(--text-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .chevron{color:var(--text-muted);font-size:20px;flex-shrink:0;line-height:1;padding:4px;transition:transform .15s;}
 .chevron.open{transform:rotate(180deg);}
@@ -220,9 +274,17 @@ select{font-family:var(--font-body);font-size:12px;padding:8px 10px;border:none;
 
 /* ===== split table (dark tokens) — tryb podglądu i edycji, ta sama tabela ===== */
 .tabela-naglowek{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;}
+.tbl-wrap{overflow-x:auto;}
 /* rynna suwaka zarezerwowana na stałe i wsunięta w prawy padding karty — dzięki temu
    pojawienie się suwaka nie zwęża tabeli, tylko nachodzi na kafelek */
-.tbl-wrap{overflow-x:auto;scrollbar-gutter:stable;margin-right:-8px;}
+@media (pointer:fine){
+  .tbl-wrap{scrollbar-gutter:stable;margin-right:calc(-1 * var(--sb));}
+}
+/* dotyk: suwak jest nakładkowy i rysuje się na tabeli — zamiast rynny zostawiamy
+   pasek miejsca po prawej, żeby nie kładł się na nagłówku ostatniej kolumny */
+@media (pointer:coarse){
+  .tbl-wrap{padding-right:7px;}
+}
 table{width:100%;table-layout:fixed;border-collapse:collapse;font-family:var(--font-numeric);font-size:13px;}
 th{text-align:center;vertical-align:bottom;font-weight:700;color:var(--text-muted);font-size:9px;text-transform:uppercase;letter-spacing:0.06em;padding:6px 3px;border-bottom:1px solid var(--divider-strong);white-space:normal;line-height:1.3;overflow:hidden;}
 td{text-align:center;padding:7px 3px;border-bottom:1px solid var(--divider);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text-dim);}
@@ -259,6 +321,13 @@ table td span{cursor:pointer;}
 .banner-desc{font-size:12px;color:var(--text-muted);margin-top:2px;margin-bottom:8px;}
 .banner .inputs{display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
 .banner .inputs label{font-size:12px;color:var(--text-muted);}
+/* milestone: etykieta + pole w jednej linijce (dwie linijki), przyciski w trzeciej —
+   flex-wrap rozjeżdżał to na telefonie na losowe kombinacje */
+.ms-form{display:grid;grid-template-columns:max-content max-content;gap:8px 10px;align-items:center;}
+.ms-form label{font-size:12px;color:var(--text-muted);}
+.ms-form .ms-btns{grid-column:1 / -1;display:flex;gap:8px;margin-top:2px;}
+/* koniec treningu: 4 cyfry, pole nie musi być tak szerokie jak domyślne */
+.banner .end-input{width:72px;}
 
 /* ===== buttons ===== */
 .btn-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:1rem;}
@@ -271,9 +340,8 @@ button.small{padding:8px var(--s3);font-size:12px;font-family:var(--font-body);m
 button.danger{color:var(--accent-danger);border-color:var(--accent-danger-border);background:transparent;}
 button.danger:hover{background:oklch(0.7 0.16 25 / 0.1);}
 button:disabled{opacity:0.4;cursor:not-allowed;}
-/* przyciski końca treningu: małe, dosunięte do prawej krawędzi nagłówka banera */
-.banner-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;}
-.banner-btn-row{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;margin:0 0 0 auto;}
+/* przyciski końca treningu: własna linijka pod polem czasu (obok tytułu nie mieściły się na telefonie) */
+.banner-btn-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;}
 .banner-btn-row button{flex:0 0 auto;margin:0;}
 
 /* ===== podsumowanie eksportu ===== */
@@ -294,8 +362,11 @@ button:disabled{opacity:0.4;cursor:not-allowed;}
 .panel-row input[type=text]{flex:1;width:auto;height:48px;box-sizing:border-box;font-size:16px;text-align:left;padding-left:14px;background:var(--chip-input);}
 .panel-row .toggle-btn{height:48px;box-sizing:border-box;flex-shrink:0;}
 .panel-row .toggle-btn.active{background:var(--accent-warn);color:oklch(0.15 0.02 60);}
-.panel-preview{display:flex;justify-content:space-between;align-items:center;min-height:16px;margin-top:2px;}
-.panel-err{font-size:12px;color:var(--accent-warn);}
+/* stała wysokość, nie min-height: podgląd „= 0:37" i komunikat błędu mają różne
+   metryki, a panel nie może skakać przy każdym wpisanym znaku */
+.panel-preview{display:flex;justify-content:space-between;align-items:center;height:20px;margin-top:2px;overflow:hidden;}
+.panel-preview .preview{line-height:1.2;}
+.panel-err{font-size:12px;line-height:1.2;color:var(--accent-warn);min-height:0;margin-top:0;}
 .panel-buttons{display:flex;gap:8px;margin-top:6px;}
 .panel-buttons button{margin:0;}
 .panel-buttons .btn-secondary{flex:1;}
@@ -325,6 +396,7 @@ button:disabled{opacity:0.4;cursor:not-allowed;}
 
 /* ===== plan ===== */
 .plan-dzis-tytul{font-family:var(--font-display);font-size:16px;font-weight:700;margin-bottom:2px;}
+.plan-dzis-nazwa{font-family:var(--font-display);font-size:14px;font-weight:600;color:var(--text-dim);margin-bottom:2px;}
 .plan-dzis-faza{font-size:12px;color:var(--accent-info);margin-bottom:14px;}
 .plan-dzis-tempo{font-family:var(--font-numeric);font-size:13px;color:var(--text-dim);}
 .plan-grupa-faza{font-family:var(--font-body);font-weight:700;font-size:14px;}
