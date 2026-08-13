@@ -9,16 +9,19 @@ window.Keypad = (function () {
     input.dispatchEvent(new Event(typ, { bubbles: true }));
   }
 
-  // Klawiaturę systemową blokujemy tylko na dotyku (telefon/tablet) — na komputerze
-  // pole zostaje normalnie edytowalne, bo tam wpisywanie z klawiatury jest szybsze.
+  // Cała klawiatura ekranowa działa tylko na dotyku (telefon/tablet): tam blokujemy
+  // klawiaturę systemową i pokazujemy własną siatkę. Na komputerze nie montujemy nic,
+  // a pole zostaje normalnie edytowalne — wpisywanie z fizycznej klawiatury jest szybsze.
   function dotykowe() {
     return window.matchMedia && window.matchMedia('(hover: none) and (pointer: coarse)').matches;
   }
 
+  // inputMode='none' wystarcza, żeby iOS nie podniósł klawiatury systemowej.
+  // Świadomie NIE ustawiamy readOnly — w polu tylko do odczytu iOS nie rysuje
+  // migającej karetki, więc nie widać gdzie się wpisuje.
   function przygotujPole(input) {
     input.setAttribute('autocomplete', 'off');
     if (!dotykowe()) return;
-    input.readOnly = true;
     input.inputMode = 'none';
   }
 
@@ -71,6 +74,7 @@ window.Keypad = (function () {
   // Klawiatura na stałe wmontowana w kontenerze (np. stopka Trackera) — bez focusu/blura.
   function mountInline(container, input) {
     przygotujPole(input);
+    if (!dotykowe()) return;
     container.innerHTML = '';
     container.appendChild(zbudujSiatke(input));
   }
@@ -78,6 +82,7 @@ window.Keypad = (function () {
   // Klawiatura pojawiająca się w dockEl, gdy pole dostaje focus (tap na readonly input).
   function mountOnFocus(input, dockEl) {
     przygotujPole(input);
+    if (!dotykowe()) return;
     input.addEventListener('focus', function () {
       dockEl.innerHTML = '';
       dockEl.appendChild(zbudujSiatke(input));

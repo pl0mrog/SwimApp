@@ -104,7 +104,7 @@ window.PlanWidok = (function () {
       '</div>' +
       '<div class="plan-dzis-tempo">tempo ' + t.tempo + '  ·  przerwa ' + t.przerwa + ' s</div>' +
       (t.uwaga ? '<p class="hint">' + t.uwaga + '</p>' : '') +
-      '<div class="btn-row"><button class="end" id="planZrobioneBtn">Zrobione ✓</button></div>';
+      '<div class="btn-row"><button class="primary" id="planZrobioneBtn">Zrobione ✓</button></div>';
 
     karta.querySelector('#planZrobioneBtn').addEventListener('click', function () {
       ustawWykonanie(Plan.kluczTreningu(tydzien.numer, t.wariant), true);
@@ -223,7 +223,9 @@ window.PlanWidok = (function () {
     const strzalka = document.createElement('span');
     strzalka.className = 'historia-strzalka';
     strzalka.textContent = zasadyRozwiniete ? '▾' : '▸';
-    const tekst = document.createElement('span');
+    // section-label, nie zwykły span — to tytuł karty, tak jak w każdej innej karcie apki
+    const tekst = document.createElement('div');
+    tekst.className = 'section-label';
     tekst.textContent = 'Zasady';
     naglowek.appendChild(strzalka);
     naglowek.appendChild(tekst);

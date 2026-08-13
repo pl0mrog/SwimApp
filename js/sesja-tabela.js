@@ -62,10 +62,14 @@ window.SesjaTabela = (function () {
     const grid = document.createElement('div');
     grid.className = 'sum-grid';
     grid.innerHTML =
-      komorkaSum('Dystans', Model.dystans(sesja) + 'm', 'sum-cell-swim') +
-      komorkaSum('Suma', Model.fmtCzas(Model.czasRazem(sesja)), 'sum-cell-swim') +
-      komorkaSum('Pływanie', Model.fmtCzas(Model.czasPlywania(sesja)), '') +
-      komorkaSum('Przerwy', Model.fmtCzas(Model.czasPrzerw(sesja)), '');
+      kafelekSum('sum-cell-swim', [
+        ['Dystans', Model.dystans(sesja) + 'm'],
+        ['Suma', Model.fmtCzas(Model.czasRazem(sesja))]
+      ]) +
+      kafelekSum('', [
+        ['Pływanie', Model.fmtCzas(Model.czasPlywania(sesja))],
+        ['Przerwy', Model.fmtCzas(Model.czasPrzerw(sesja))]
+      ]);
     karta.appendChild(grid);
 
     // Sesja rozpoczęta, ale bez splitów — kafelki z zerami + zachęta zamiast tabeli
@@ -83,8 +87,10 @@ window.SesjaTabela = (function () {
     const tabela = document.createElement('table');
 
     if (stan.trybEdycji) {
+      // szósta kolumna (usuwanie) potrzebuje własnych szerokości — patrz .tbl-edycja w CSS
+      tabela.className = 'tbl-edycja';
       tabela.innerHTML =
-        '<thead><tr><th>Dystans</th><th>Czas 100m</th><th>Przerwa</th><th>Czas zbiorczy</th><th>Zbiorczy+przerwa</th><th></th></tr></thead>';
+        '<thead><tr><th>Dystans</th><th>Czas 100m</th><th>Przerwa</th><th>Czas zbiorczy</th><th>Zbiorczy + przerwa</th><th></th></tr></thead>';
       const tbody = document.createElement('tbody');
 
       tbody.appendChild(wierszWstaw(0, kontener, stan));
@@ -96,7 +102,7 @@ window.SesjaTabela = (function () {
       tabela.appendChild(tbody);
     } else {
       tabela.innerHTML =
-        '<thead><tr><th>Dystans</th><th>Czas 100m</th><th>Przerwa</th><th>Czas zbiorczy</th><th>Zbiorczy+przerwa</th></tr></thead>';
+        '<thead><tr><th>Dystans</th><th>Czas 100m</th><th>Przerwa</th><th>Czas zbiorczy</th><th>Zbiorczy + przerwa</th></tr></thead>';
       const tbody = document.createElement('tbody');
       for (let i = splity.length - 1; i >= 0; i--) {
         tbody.appendChild(wierszSplituOdczyt(sesja, i));
@@ -122,9 +128,15 @@ window.SesjaTabela = (function () {
     kontener.appendChild(karta);
   }
 
-  function komorkaSum(etykieta, wartosc, klasaDodatkowa) {
-    return '<div class="sum-cell ' + (klasaDodatkowa || '') + '"><div class="sum-cell-label">' + etykieta +
-      '</div><div class="sum-cell-val">' + wartosc + '</div></div>';
+  // Jeden kafelek mieści dwie wartości obok siebie — dwa kafelki zamiast czterech
+  // oszczędzają wysokość, której na telefonie brakuje przy pełnej sesji.
+  function kafelekSum(klasaDodatkowa, pary) {
+    return '<div class="sum-cell sum-cell-para ' + (klasaDodatkowa || '') + '">' +
+      pary.map(function (para) {
+        return '<div class="sum-item"><div class="sum-cell-label">' + para[0] +
+          '</div><div class="sum-cell-val">' + para[1] + '</div></div>';
+      }).join('') +
+    '</div>';
   }
 
   // Wartości pochodne jednego splitu — współdzielone przez wiersz edycji i wiersz podglądu.

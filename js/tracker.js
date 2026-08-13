@@ -4,7 +4,6 @@ window.Tracker = (function () {
 
   let sesja = sesjaPusta();
   let zakonczony = false;
-  let zapisany = false;
   let kontenerGlobalny = null;
   // Zanim użytkownik kliknie "Dodaj nową sesję" Tracker pokazuje sam ekran startowy.
   let sesjaRozpoczeta = false;
@@ -62,7 +61,6 @@ window.Tracker = (function () {
     kontener.querySelector('#startBtn').addEventListener('click', function () {
       sesja = sesjaPusta();
       zakonczony = false;
-      zapisany = false;
       milestoneOtwarty = null;
       przerwaAktywna = false;
       sesjaRozwinieta = true;
@@ -82,6 +80,10 @@ window.Tracker = (function () {
   function odswiezUklad(kontener) {
     const layout = kontener.querySelector('.tracker-layout');
     if (layout) layout.classList.toggle('luzny', czyLuznyUklad());
+    // Przy otwartym dialogu (milestone / koniec) wpisuje się czas w banerze —
+    // dolny pasek ze splitami tylko zabierałby wtedy miejsce i mylił.
+    const panel = kontener.querySelector('.tracker-panel');
+    if (panel) panel.classList.toggle('ukryty', milestoneOtwarty !== null || endPromptOtwarty);
   }
 
   function render() {
@@ -143,7 +145,7 @@ window.Tracker = (function () {
         '<div class="input-row" id="manualRow" style="display:none;margin-top:6px;">' +
           '<input type="text" id="manualDystans" placeholder="dystans np. 2000" maxlength="5"> m' +
           '<input type="text" id="manualCzas" placeholder="czas np. 3237 (opcjonalnie)" maxlength="4">' +
-          '<button class="small" id="manualZapisz">Zapisz</button>' +
+          '<button class="small primary" id="manualZapisz">Zapisz</button>' +
         '</div>' +
         '<div class="keypad-dock" id="manualKeypadDock"></div>' +
         '<div class="err-msg" id="manualMsg"></div>' +
@@ -275,7 +277,6 @@ window.Tracker = (function () {
   }
 
   function statusTekst() {
-    if (zapisany) return 'sesja zapisana';
     if (zakonczony) return 'trening zakończony';
     if (milestoneOtwarty) return 'milestone ' + milestoneOtwarty + ' m';
     return '';
@@ -500,7 +501,7 @@ window.Tracker = (function () {
           '<input type="text" id="msSwim" placeholder="1148" maxlength="4">' +
           '<label>+ przerwa (opcjonalnie):</label>' +
           '<input type="text" id="msRest" placeholder="105" maxlength="4">' +
-          '<button class="small" id="msZapisz">Zapisz</button>' +
+          '<button class="small primary" id="msZapisz">Zapisz</button>' +
           '<button class="small" id="msPomin">Pomiń</button>' +
         '</div>' +
         '<div class="keypad-dock" id="msKeypadDock"></div>' +
@@ -628,9 +629,11 @@ window.Tracker = (function () {
     dok.ustawienia.ostatniBasen = sesja.basen;
     Dane.zapisz(dok);
 
-    zapisany = true;
-    pokazZapisMsg(kontener, 'Zapisano.');
-    odswiezDynamiczne(kontener);
+    // Po zapisie wracamy na ekran startowy — potwierdzenie leci w komunikacie tam.
+    // Kopię do Excela robi się wcześniej: karta eksportu jest na ekranie od momentu
+    // wpisania czasu końcowego.
+    komunikatStartu = 'Zapisano sesję (' + swimDist() + 'm, ' + Model.fmtCzas(sesja.koniec.sec) + ').';
+    resetTrening();
   }
 
   function pokazZapisMsg(kontener, msg) {
@@ -670,7 +673,6 @@ window.Tracker = (function () {
   function resetTrening() {
     sesja = sesjaPusta();
     zakonczony = false;
-    zapisany = false;
     milestoneOtwarty = null;
     przerwaAktywna = false;
     endPromptOtwarty = false;
@@ -689,7 +691,7 @@ window.Tracker = (function () {
   }
 
   function panelTargetTekst() {
-    if (zakonczony) return zapisany ? '' : 'łączny czas treningu wpisany — zapisz sesję';
+    if (zakonczony) return 'łączny czas treningu wpisany — zapisz sesję';
     return 'następne ' + (swimDist() + 100) + ' m';
   }
 
@@ -721,8 +723,8 @@ window.Tracker = (function () {
 
     const undoArea = kontener.querySelector('#panelUndoArea');
     if (undoArea) {
-      undoArea.innerHTML = (zakonczony && !zapisany)
-        ? '<button class="link-btn panel-undo" id="cofnijBtn">Cofnij zakończenie</button>'
+      undoArea.innerHTML = zakonczony
+        ? '<button class="small panel-undo" id="cofnijBtn">Cofnij zakończenie</button>'
         : '';
       const cofnijBtn = undoArea.querySelector('#cofnijBtn');
       if (cofnijBtn) cofnijBtn.addEventListener('click', function () { cofnijZakonczenie(kontener); });
@@ -733,8 +735,8 @@ window.Tracker = (function () {
     if (secondaryBtn) secondaryBtn.textContent = zakonczony ? 'Nowy' : 'Koniec';
     if (dodajBtn) {
       if (zakonczony) {
-        dodajBtn.textContent = zapisany ? 'Zapisano ✓' : 'Zapisz…';
-        dodajBtn.disabled = zapisany;
+        dodajBtn.textContent = 'Zapisz…';
+        dodajBtn.disabled = false;
         dodajBtn.onclick = function () { zapiszSesje(kontener); };
       } else {
         dodajBtn.textContent = 'Dodaj 100 m';
@@ -746,7 +748,7 @@ window.Tracker = (function () {
     const tabelaKontener = kontener.querySelector('#summaryArea');
     if (tabelaKontener) {
       SesjaTabela.render(tabelaKontener, sesja, {
-        edytowalna: !zapisany,
+        edytowalna: true,
         pustyTekst: 'Dodaj czas pierwszego splitu — pojawi się tutaj.',
         onZmiana: function (nowaSesja) { sesja = nowaSesja; odswiezDynamiczne(kontener); }
       });
@@ -755,8 +757,9 @@ window.Tracker = (function () {
     updateExportValue(kontener);
   }
 
+  // Po zapisie sesja jest resetowana, więc sama obecność splitów oznacza dane niezapisane.
   window.addEventListener('beforeunload', function (e) {
-    if (sesja.splity.length && !zapisany) {
+    if (sesja.splity.length) {
       e.preventDefault();
       e.returnValue = '';
     }

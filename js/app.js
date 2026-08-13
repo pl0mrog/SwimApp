@@ -48,15 +48,31 @@ window.App = (function () {
     document.title = 'SwimApp – v' + window.APP_VERSION;
   }
 
-  // Ekran startowy znika po sekundzie; element usuwamy dopiero po animacji,
+  // Pasek ładowania na ekranie startowym: co sekundę zapala się kolejna z czterech
+  // pierwszych pastylek (kolory jak w logo — trzy kobaltowe, czwarta błękitna),
+  // sekundę po ostatniej ekran gaśnie. Element usuwamy dopiero po animacji,
   // żeby nie przechwytywał kliknięć w przezroczystym stanie.
+  const KROK_PASKA_MS = 1000;
+  const PASTYLKI_PASKA = 4;
+
   function schowajSplash() {
     const splash = document.getElementById('splash');
     if (!splash) return;
+    const pastylki = splash.querySelectorAll('.splash-bar i');
+
+    for (let i = 0; i < PASTYLKI_PASKA; i++) {
+      setTimeout(function (idx) {
+        return function () {
+          const p = pastylki[idx];
+          if (p) p.classList.add(idx === PASTYLKI_PASKA - 1 ? 'on-info' : 'on');
+        };
+      }(i), (i + 1) * KROK_PASKA_MS);
+    }
+
     setTimeout(function () {
       splash.classList.add('ukryty');
       setTimeout(function () { splash.remove(); }, 400);
-    }, 1000);
+    }, (PASTYLKI_PASKA + 1) * KROK_PASKA_MS);
   }
 
   function init() {
