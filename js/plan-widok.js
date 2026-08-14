@@ -17,20 +17,21 @@ window.PlanWidok = (function () {
 
   function wykonane() {
     const dok = Dane.wczytaj();
-    return dok.plan.wykonane[Plan.id] || {};
+    return dok.plan.wykonane[Plan.aktywnyId()] || {};
   }
 
   function ustawWykonanie(klucz, zrobione) {
     const dok = Dane.wczytaj();
-    dok.plan.aktywnyPlan = Plan.id;
-    if (!dok.plan.wykonane[Plan.id]) dok.plan.wykonane[Plan.id] = {};
+    const id = Plan.aktywnyId();
+    dok.plan.aktywnyPlan = id;
+    if (!dok.plan.wykonane[id]) dok.plan.wykonane[id] = {};
     if (zrobione) {
-      dok.plan.wykonane[Plan.id][klucz] = {
+      dok.plan.wykonane[id][klucz] = {
         data: new Date().toISOString().slice(0, 10),
         sesjaId: null
       };
     } else {
-      delete dok.plan.wykonane[Plan.id][klucz];
+      delete dok.plan.wykonane[id][klucz];
     }
     Dane.zapisz(dok);
     render();
@@ -58,7 +59,12 @@ window.PlanWidok = (function () {
 
   function render() {
     const kontener = kontenerGlobalny;
-    const lista = Plan.tygodnie();
+    App.przerysuj(kontener, function () { renderTresc(kontener); });
+  }
+
+  function renderTresc(kontener) {
+    const def = Plan.aktywny();
+    const lista = Plan.tygodnie(def);
     const zrobione = wykonane();
     const nastepny = nastepnyTrening(lista, zrobione);
 
@@ -70,26 +76,27 @@ window.PlanWidok = (function () {
     kontener.innerHTML = '';
     const scroll = document.createElement('div');
     scroll.className = 'view-scroll';
-    scroll.appendChild(renderNastepny(lista, nastepny));
-    scroll.appendChild(renderCalyPlan(lista, zrobione, nastepny));
-    scroll.appendChild(renderZasady());
+    scroll.appendChild(renderNastepny(lista, nastepny, def));
+    scroll.appendChild(renderCalyPlan(lista, zrobione, nastepny, def));
+    scroll.appendChild(renderZasady(def));
     kontener.appendChild(scroll);
   }
 
-  function renderNastepny(lista, nastepny) {
+  function renderNastepny(lista, nastepny, def) {
     const karta = document.createElement('div');
     karta.className = 'card';
 
     if (!nastepny) {
       karta.innerHTML =
         '<div class="section-label">Plan ukończony</div>' +
-        '<p class="hint">Wszystkie treningi z planu „' + Plan.DANE.nazwa + '” są odhaczone. ' +
-        'Czas na nowy plan — patrz komentarz na górze <code>js/plan.js</code>.</p>';
+        '<p class="hint">Wszystkie treningi z planu „' + def.nazwa + '” są odhaczone. ' +
+        'Wczytaj nowy plan w Ustawieniach → Plan treningowy.</p>';
       return karta;
     }
 
     const t = nastepny.trening;
     const tydzien = nastepny.tydzien;
+    const gosc = Dane.tryb() === 'gosc';
 
     karta.innerHTML =
       '<div class="section-label">Następny trening</div>' +
@@ -104,11 +111,14 @@ window.PlanWidok = (function () {
       '</div>' +
       '<div class="plan-dzis-tempo">rozgrzewka ' + t.rozgrzewka + ' m  ·  schłodzenie ' + t.schlodzenie + ' m</div>' +
       (t.uwaga ? '<p class="hint">' + t.uwaga + '</p>' : '') +
-      '<div class="btn-row"><button class="primary" id="planZrobioneBtn">Zrobione</button></div>';
+      (gosc ? '' : '<div class="btn-row"><button class="primary" id="planZrobioneBtn">Zrobione</button></div>');
 
-    karta.querySelector('#planZrobioneBtn').addEventListener('click', function () {
-      ustawWykonanie(Plan.kluczTreningu(tydzien.numer, t.wariant), true);
-    });
+    const btnZrobione = karta.querySelector('#planZrobioneBtn');
+    if (btnZrobione) {
+      btnZrobione.addEventListener('click', function () {
+        ustawWykonanie(Plan.kluczTreningu(tydzien.numer, t.wariant), true);
+      });
+    }
 
     return karta;
   }
@@ -121,7 +131,7 @@ window.PlanWidok = (function () {
     '</div>';
   }
 
-  function renderCalyPlan(lista, zrobione, nastepny) {
+  function renderCalyPlan(lista, zrobione, nastepny, def) {
     const karta = document.createElement('div');
     karta.className = 'card';
     const etykieta = document.createElement('div');
@@ -131,7 +141,7 @@ window.PlanWidok = (function () {
 
     const numerBiezacego = nastepny ? nastepny.tydzien.numer : null;
 
-    Plan.DANE.fazy.forEach(function (faza, indeksFazy) {
+    def.fazy.forEach(function (faza, indeksFazy) {
       const tygodnieFazy = lista.filter(function (t) { return t.indeksFazy === indeksFazy; });
       let wszystkich = 0;
       let odhaczonych = 0;
@@ -201,7 +211,11 @@ window.PlanWidok = (function () {
       const cb = document.createElement('input');
       cb.type = 'checkbox';
       cb.checked = !!zrobione[klucz];
-      cb.addEventListener('change', function () { ustawWykonanie(klucz, cb.checked); });
+      if (Dane.tryb() === 'gosc') {
+        cb.disabled = true;
+      } else {
+        cb.addEventListener('change', function () { ustawWykonanie(klucz, cb.checked); });
+      }
       const span = document.createElement('span');
       span.textContent = trening.wariant + ' · ' + opisSerii(trening);
       span.title = 'tempo ' + trening.tempo + ', przerwa ' + trening.przerwa + ' s';
@@ -215,7 +229,7 @@ window.PlanWidok = (function () {
     return wiersz;
   }
 
-  function renderZasady() {
+  function renderZasady(def) {
     const karta = document.createElement('div');
     karta.className = 'card';
 
@@ -237,7 +251,7 @@ window.PlanWidok = (function () {
     karta.appendChild(naglowek);
 
     if (zasadyRozwiniete) {
-      Plan.DANE.zasady.forEach(function (z) {
+      def.zasady.forEach(function (z) {
         const el = document.createElement('div');
         el.className = 'plan-zasada';
         el.innerHTML = '<span class="lbl">' + z.tytul + '</span>' + z.tresc;
@@ -245,7 +259,7 @@ window.PlanWidok = (function () {
       });
       const stopka = document.createElement('p');
       stopka.className = 'hint';
-      stopka.textContent = Plan.DANE.nazwa + ' · ' + Plan.DANE.podtytul;
+      stopka.textContent = def.nazwa + ' · ' + def.podtytul;
       karta.appendChild(stopka);
     }
 
@@ -257,7 +271,8 @@ window.PlanWidok = (function () {
     etykieta: 'Plan',
     aktywny: true,
     montuj: montuj,
-    odmontuj: odmontuj
+    odmontuj: odmontuj,
+    odswiez: render
   });
 
   return {};

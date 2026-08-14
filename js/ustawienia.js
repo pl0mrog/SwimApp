@@ -11,6 +11,11 @@ window.Ustawienia = (function () {
   let idSesjiEdycji = null;
   // domyślnie zwinięta — pola ID Gista i tokenu nie mają leżeć na wierzchu
   let syncRozwinieta = false;
+  // domyślnie zwinięta — jak karta „Synchronizacja", nie leży na wierzchu Ustawień
+  let planRozwinieta = false;
+  // Odswiez() z tla (status-zmieniony przy push/pull) nie moze przerysowac karty,
+  // dopoki uzytkownik cos wpisuje w pola ID/token — skasowaloby niezapisany tekst.
+  let syncPoleFocus = false;
 
   function montuj(kontener) {
     kontenerGlobalny = kontener;
@@ -28,8 +33,9 @@ window.Ustawienia = (function () {
     const scroll = document.createElement('div');
     scroll.className = 'view-scroll';
     scroll.appendChild(renderKopiaIEksport());
+    scroll.appendChild(renderPlanTreningowy());
     scroll.appendChild(renderSynchronizacja());
-    scroll.appendChild(renderEdycja());
+    if (Dane.tryb() !== 'gosc') scroll.appendChild(renderEdycja());
     const wersja = document.createElement('p');
     wersja.className = 'stopka-wersja';
     wersja.textContent = 'SwimApp v' + window.APP_VERSION;
@@ -39,6 +45,7 @@ window.Ustawienia = (function () {
 
   function renderKopiaIEksport() {
     const dok = Dane.wczytaj();
+    const gosc = Dane.tryb() === 'gosc';
     const lata = Array.from(new Set(dok.sesje.map(function (s) { return s.data.slice(0, 4); })))
       .sort().reverse();
 
@@ -56,9 +63,9 @@ window.Ustawienia = (function () {
       '</div>' +
       '<div class="btn-row" style="margin-top:0;">' +
         '<button class="primary" id="pobierzBtn">Pobierz JSON</button>' +
-        '<button class="small" id="wczytajBtn">Wczytaj JSON</button>' +
+        (gosc ? '' : '<button class="small" id="wczytajBtn">Wczytaj JSON</button>') +
       '</div>' +
-      '<input type="file" id="wczytajInput" accept="application/json" style="display:none;">' +
+      (gosc ? '' : '<input type="file" id="wczytajInput" accept="application/json" style="display:none;">') +
       '<div class="err-msg" id="expMsg"></div>';
 
     const rokSel = karta.querySelector('#expRok');
@@ -69,6 +76,8 @@ window.Ustawienia = (function () {
     });
 
     karta.querySelector('#pobierzBtn').addEventListener('click', function () { pobierzWybraneJSON(karta); });
+
+    if (gosc) return karta;
 
     const input = karta.querySelector('#wczytajInput');
     karta.querySelector('#wczytajBtn').addEventListener('click', function () { input.click(); });
@@ -97,11 +106,136 @@ window.Ustawienia = (function () {
     return karta;
   }
 
-  // Karta czysto wizualna — etap 3 (Gist sync, patrz wdrozenie-online.md §3d) jeszcze
-  // niepodłączony. Żaden z przycisków nie zapisuje niczego do localStorage.
+  function renderPlanTreningowy() {
+    const dok = Dane.wczytaj();
+    const def = Plan.aktywny();
+    const zrobione = dok.plan.wykonane[def.id] || {};
+    let wszystkich = 0;
+    let odhaczonych = 0;
+    Plan.tygodnie(def).forEach(function (tydzien) {
+      tydzien.treningi.forEach(function (trening) {
+        wszystkich++;
+        if (zrobione[Plan.kluczTreningu(tydzien.numer, trening.wariant)]) odhaczonych++;
+      });
+    });
+    const jestWbudowany = !dok.plan.definicja;
+    const gosc = Dane.tryb() === 'gosc';
+
+    const karta = document.createElement('div');
+    karta.className = 'card';
+
+    // zwijanie jak w karcie „Synchronizacja": tytuł z lewej, obracana strzałka z prawej
+    const naglowek = document.createElement('div');
+    naglowek.className = 'karta-head';
+    const tytul = document.createElement('div');
+    tytul.className = 'section-label';
+    tytul.textContent = 'Plan treningowy';
+    const strzalka = document.createElement('span');
+    strzalka.className = 'chevron' + (planRozwinieta ? ' open' : '');
+    strzalka.textContent = '▾';
+    naglowek.appendChild(tytul);
+    naglowek.appendChild(strzalka);
+    naglowek.addEventListener('click', function () {
+      planRozwinieta = !planRozwinieta;
+      render();
+    });
+    karta.appendChild(naglowek);
+
+    if (!planRozwinieta) return karta;
+
+    const tresc = document.createElement('div');
+    tresc.style.marginTop = '14px';
+    tresc.innerHTML =
+      '<div class="plan-dzis-nazwa">' + def.nazwa + '</div>' +
+      '<p class="hint" style="margin-top:2px;">' + def.podtytul + '</p>' +
+      '<p class="hint">Odhaczone: ' + odhaczonych + ' z ' + wszystkich + ' treningów</p>' +
+      '<div class="btn-row">' +
+        '<button class="primary" id="planPobierzBtn">Pobierz plan</button>' +
+        (gosc ? '' : '<button class="small" id="planWczytajBtn">Wczytaj plan</button>') +
+        (gosc || jestWbudowany ? '' : '<button class="small" id="planWbudowanyBtn">Przywróć wbudowany</button>') +
+      '</div>' +
+      (gosc ? '' : '<input type="file" id="planWczytajInput" accept="application/json" style="display:none;">') +
+      '<div class="err-msg" id="planMsg"></div>';
+    karta.appendChild(tresc);
+
+    tresc.querySelector('#planPobierzBtn').addEventListener('click', function () {
+      pobierzJSON(
+        { typ: 'swimapp-plan', wersjaFormatu: 1, plan: def, wykonane: zrobione },
+        'swimapp-plan-' + def.id + '-' + new Date().toISOString().slice(0, 10) + '.json'
+      );
+    });
+
+    if (gosc) return karta;
+
+    const input = karta.querySelector('#planWczytajInput');
+    karta.querySelector('#planWczytajBtn').addEventListener('click', function () { input.click(); });
+    input.addEventListener('change', function () {
+      const plik = input.files[0];
+      if (!plik) return;
+      const reader = new FileReader();
+      reader.onload = function () {
+        input.value = '';
+        try {
+          wczytajPlanZPliku(reader.result);
+          render();
+        } catch (e) {
+          const msgEl = kontenerGlobalny.querySelector('#planMsg');
+          if (msgEl) msgEl.textContent = e.message;
+        }
+      };
+      reader.readAsText(plik);
+    });
+
+    const wbudowanyBtn = karta.querySelector('#planWbudowanyBtn');
+    if (wbudowanyBtn) {
+      wbudowanyBtn.addEventListener('click', function () {
+        const d = Dane.wczytaj();
+        d.plan.definicja = null;
+        d.plan.aktywnyPlan = Plan.WBUDOWANY.id;
+        Dane.zapisz(d);
+        render();
+      });
+    }
+
+    return karta;
+  }
+
+  function wczytajPlanZPliku(tekst) {
+    let plik;
+    try {
+      plik = JSON.parse(tekst);
+    } catch (e) {
+      throw new Error('Plik nie jest poprawnym JSON-em.');
+    }
+    if (!plik || plik.typ !== 'swimapp-plan') {
+      throw new Error('To nie jest plik planu SwimApp — użyj „Wczytaj JSON" powyżej dla pełnych danych.');
+    }
+    const wynik = Plan.waliduj(plik.plan);
+    if (!wynik.ok) {
+      throw new Error(wynik.bledy.join(' '));
+    }
+    const dok = Dane.wczytaj();
+    dok.plan.definicja = plik.plan;
+    dok.plan.aktywnyPlan = plik.plan.id;
+    if (!dok.plan.wykonane[plik.plan.id] && plik.wykonane && typeof plik.wykonane === 'object') {
+      dok.plan.wykonane[plik.plan.id] = plik.wykonane;
+    }
+    Dane.zapisz(dok);
+  }
+
+  function opisStatusuSync(s) {
+    if (s.blad && s.blad.kod !== '401') return '⚠ ' + s.blad.komunikat;
+    if (s.tryb === 'lokalny') return '⚠ Nieskonfigurowane — wklej ID Gista i token';
+    if (s.blad && s.blad.kod === '401') return '⚠ ' + s.blad.komunikat;
+    if (s.tryb === 'gosc') return '⚠ Tylko odczyt — wklej token, żeby zapisywać';
+    if (s.niewyslane || s.wTrakcie) return '⏳ Niewysłane zmiany — czekają na połączenie';
+    return '✓ Połączono — zapis włączony';
+  }
+
   function renderSynchronizacja() {
     const karta = document.createElement('div');
     karta.className = 'card';
+    const s = Dane.stanSync();
 
     // zwijanie jak w karcie „Sesja" w Trackerze: tytuł z lewej, obracana strzałka z prawej
     const naglowek = document.createElement('div');
@@ -125,22 +259,64 @@ window.Ustawienia = (function () {
     const tresc = document.createElement('div');
     tresc.style.marginTop = '14px';
     tresc.innerHTML =
-      '<p class="hint" style="margin-top:0;">⚠ Nieskonfigurowane — wklej ID Gista i token</p>' +
+      '<p class="hint" style="margin-top:0;">' + opisStatusuSync(s) +
+        (s.ostatniOdczyt ? '<br>Ostatni odczyt: ' + fmtChwila(s.ostatniOdczyt) : '') + '</p>' +
       '<div class="input-row">' +
         '<input type="text" id="syncGistId" placeholder="ID Gista" style="flex:1;min-width:0;text-align:left;" ' +
-          'autocapitalize="off" autocorrect="off" spellcheck="false" autocomplete="off">' +
+          'autocapitalize="off" autocorrect="off" spellcheck="false" autocomplete="off" value="' + (s.idGista || '') + '">' +
       '</div>' +
       '<div class="input-row">' +
-        '<input type="password" id="syncToken" placeholder="Token GitHub" ' +
+        '<input type="password" id="syncToken" placeholder="' + (s.tokenOgon ? 'github_pat_… ' + s.tokenOgon : 'Token GitHub') + '" ' +
           'autocapitalize="off" autocorrect="off" spellcheck="false" autocomplete="off">' +
       '</div>' +
       '<div class="btn-row" style="margin-top:8px;">' +
         '<button class="primary" id="syncSprawdz">Sprawdź i zapisz</button>' +
+        '<button class="small" id="syncOdswiez">Odśwież z Gista</button>' +
         '<button class="small" id="syncUsun">Usuń z urządzenia</button>' +
-      '</div>';
+      '</div>' +
+      '<div class="err-msg" id="syncMsg"></div>';
     karta.appendChild(tresc);
 
+    const poleId = tresc.querySelector('#syncGistId');
+    const poleToken = tresc.querySelector('#syncToken');
+    [poleId, poleToken].forEach(function (pole) {
+      pole.addEventListener('focus', function () { syncPoleFocus = true; });
+      pole.addEventListener('blur', function () { syncPoleFocus = false; });
+    });
+
+    const btnSprawdz = tresc.querySelector('#syncSprawdz');
+    const msgEl = tresc.querySelector('#syncMsg');
+
+    btnSprawdz.addEventListener('click', function () {
+      const idGista = tresc.querySelector('#syncGistId').value;
+      const token = tresc.querySelector('#syncToken').value;
+      btnSprawdz.disabled = true;
+      btnSprawdz.textContent = 'Sprawdzam…';
+      msgEl.textContent = '';
+      Dane.ustawKonfiguracje({ idGista: idGista, token: token }).then(function () {
+        render();
+      }).catch(function (e) {
+        btnSprawdz.disabled = false;
+        btnSprawdz.textContent = 'Sprawdź i zapisz';
+        msgEl.textContent = e.message;
+      });
+    });
+
+    tresc.querySelector('#syncOdswiez').addEventListener('click', function () {
+      Dane.odswiez().then(function () { render(); });
+    });
+
+    tresc.querySelector('#syncUsun').addEventListener('click', function () {
+      Dane.usunKonfiguracje();
+      render();
+    });
+
     return karta;
+  }
+
+  function fmtChwila(iso) {
+    const d = new Date(iso);
+    return d.toLocaleDateString('pl-PL') + ' ' + d.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' });
   }
 
   function pobierzWybraneJSON(karta) {
@@ -178,12 +354,17 @@ window.Ustawienia = (function () {
       plan: dok.plan,
       sesje: wybraneSesje
     };
-    const tekst = JSON.stringify(eksportDok, null, 2);
+    pobierzJSON(eksportDok, 'swim-eksport-' + etykietaZakresu + '-' + new Date().toISOString().slice(0, 10) + '.json');
+  }
+
+  // Wspolna sciezka pobierania pliku JSON (eksport sesji, eksport planu, migawka konfliktu).
+  function pobierzJSON(obiekt, nazwaPliku) {
+    const tekst = JSON.stringify(obiekt, null, 2);
     const blob = new Blob([tekst], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'swim-eksport-' + etykietaZakresu + '-' + new Date().toISOString().slice(0, 10) + '.json';
+    a.download = nazwaPliku;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -620,7 +801,10 @@ window.Ustawienia = (function () {
     etykieta: 'Ustawienia',
     aktywny: true,
     montuj: montuj,
-    odmontuj: odmontuj
+    odmontuj: odmontuj,
+    // Otwarty formularz edycji sesji ma niezapisane pola w DOM — przerysowanie by je
+    // skasowalo. Poza edycja karta jest bezstanowa, wiec bezpiecznie sie przerysowuje.
+    odswiez: function () { if (idSesjiEdycji === null && !syncPoleFocus) render(); }
   });
 
   return {};

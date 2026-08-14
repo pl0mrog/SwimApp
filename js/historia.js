@@ -215,7 +215,8 @@ window.Historia = (function () {
     etykieta: 'Historia',
     aktywny: true,
     montuj: montuj,
-    odmontuj: odmontuj
+    odmontuj: odmontuj,
+    odswiez: render
   });
 
   return {};

@@ -10,18 +10,24 @@ window.App = (function () {
     return widoki.find(function (w) { return w.id === id; });
   }
 
+  // Widok wymagajacy zapisu (np. Tracker) jest niedostepny w trybie gosc — bez wlasnej
+  // flagi "jestem gosciem": wynika wprost z Dane.tryb(), zeby nie bylo dwoch zrodel prawdy.
+  function dostepny(w) {
+    return w.aktywny && !(w.wymagaZapisu && typeof Dane !== 'undefined' && Dane.tryb() === 'gosc');
+  }
+
   function renderNawigacji() {
     const nav = document.getElementById('nawigacja');
     nav.innerHTML = '';
     widoki.filter(function (w) { return w.id !== 'ustawienia'; }).forEach(function (w) {
       const btn = document.createElement('button');
       btn.className = 'nav-pill';
-      if (!w.aktywny) {
+      if (!dostepny(w)) {
         btn.classList.add('disabled');
         btn.disabled = true;
         // bez dopisku „(wkrótce)" — pasek nawigacji nie przewija się i musi się zmieścić
         btn.textContent = w.etykieta;
-        btn.title = 'Wkrótce';
+        btn.title = w.aktywny ? 'Tylko odczyt — wklej token w Ustawieniach, żeby zapisywać' : 'Wkrótce';
       } else {
         btn.classList.add(w.id === aktywnyId ? 'active' : 'inactive');
         btn.textContent = w.etykieta;
@@ -43,6 +49,7 @@ window.App = (function () {
     const nowy = znajdzWidok(id);
     if (nowy && nowy.montuj) nowy.montuj(kontener);
     renderNawigacji();
+    renderSyncBanner();
   }
 
   // Realna szerokość suwaka — CSS jej nie zna, a musi się zgadzać co do piksela
@@ -59,6 +66,89 @@ window.App = (function () {
     const szerokosc = sonda.offsetWidth - sonda.clientWidth;
     document.body.removeChild(sonda);
     document.documentElement.style.setProperty('--sb', szerokosc + 'px');
+  }
+
+  // Przerysowanie widoku gubi pozycje przewijania, bo `.view-scroll` jest tworzony od nowa.
+  // Zapamietujemy ja przed i przywracamy po — inaczej np. odhaczenie checkboxa w Planie
+  // przerzuca ekran na gore. Przywrocenie musi nastapic PO appendChild — element odlaczony
+  // od dokumentu ma scrollHeight 0 i przypisanie scrollTop przepadnie.
+  function przerysuj(kontener, rysuj) {
+    const stary = kontener.querySelector('.view-scroll');
+    const pozycja = stary ? stary.scrollTop : 0;
+    rysuj();
+    const nowy = kontener.querySelector('.view-scroll');
+    if (nowy && pozycja) nowy.scrollTop = pozycja;
+  }
+
+  // Baner nad tresc widoku (nad <main id="widok">, patrz index.html) — jedyne miejsce,
+  // gdzie apka pokazuje konflikt synchronizacji. Apka nie ma modali (patrz CLAUDE.md),
+  // wiec to zwykla karta .banner z przyciskami w .banner-btn-row, tak jak milestone
+  // i koniec treningu w Trackerze.
+  function renderSyncBanner() {
+    const el = document.getElementById('syncBanner');
+    if (!el) return;
+    const stanS = Dane.stanSync();
+
+    if (stanS.konflikt) {
+      el.innerHTML =
+        '<div class="banner">' +
+          '<div class="banner-title">Konflikt zapisu</div>' +
+          '<div class="banner-desc">W Giście są zmiany z drugiego urządzenia (' + fmtCzasBanera(stanS.konflikt.zdalnyCzas) + '). ' +
+          'Twoje zmiany z ' + fmtCzasBanera(stanS.konflikt.lokalnyCzas) + ' czekają na wysłanie. ' +
+          'Porzucana wersja zostanie najpierw pobrana jako plik.</div>' +
+          '<div class="banner-btn-row">' +
+            '<button class="small" id="konfliktScal">Scal obie</button>' +
+            '<button class="small" id="konfliktZdalne">Weź wersję z Gista</button>' +
+            '<button class="small" id="konfliktLokalne">Nadpisz moją</button>' +
+          '</div>' +
+        '</div>';
+      el.querySelector('#konfliktScal').addEventListener('click', function () { rozstrzygnijKonflikt('scal'); });
+      el.querySelector('#konfliktZdalne').addEventListener('click', function () { rozstrzygnijKonflikt('zdalne'); });
+      el.querySelector('#konfliktLokalne').addEventListener('click', function () { rozstrzygnijKonflikt('lokalne'); });
+      return;
+    }
+
+    if (stanS.tryb === 'gosc' && aktywnyId !== 'ustawienia') {
+      el.innerHTML =
+        '<div class="banner">' +
+          '<div class="banner-title">Tryb tylko do odczytu</div>' +
+          '<div class="banner-desc">Podgląd danych. Zapisywanie wymaga tokenu — Ustawienia → Synchronizacja.</div>' +
+        '</div>';
+      return;
+    }
+
+    el.innerHTML = '';
+  }
+
+  function fmtCzasBanera(iso) {
+    if (!iso) return '?';
+    const d = new Date(iso);
+    return d.toLocaleDateString('pl-PL') + ' ' + d.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' });
+  }
+
+  // 'zdalne'/'lokalne' porzucaja bezpowrotnie czyjas prace — apka najpierw pobiera plik
+  // z porzucana wersja (ta sama sciezka Blob + <a download> co eksport w Ustawieniach),
+  // zeby konfliktu nie dalo sie rozwiazac tak, zeby cos przepadlo na zawsze.
+  function pobierzPlikJSON(obiekt, nazwaPliku) {
+    const tekst = JSON.stringify(obiekt, null, 2);
+    const blob = new Blob([tekst], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = nazwaPliku;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  function rozstrzygnijKonflikt(jak) {
+    Dane.rozwiazKonflikt(jak).then(function (wynik) {
+      if (wynik.porzucone) {
+        const znacznik = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 16);
+        pobierzPlikJSON(wynik.porzucone, 'swimapp-konflikt-' + jak + '-' + znacznik + '.json');
+      }
+    });
   }
 
   function wstrzyknijWersje() {
@@ -93,20 +183,51 @@ window.App = (function () {
     }, Math.max(0, ANIMACJA_MS + PAUZA_MS - uplynelo));
   }
 
+  // Link dla znajomych: index.html?gist=<ID>. Jesli na tym urzadzeniu juz lezy token —
+  // wlasciciel — parametr jest ignorowany: podrzucony link nie moze przestawic jego
+  // konfiguracji na cudzy Gist. ID nigdy nie zostaje w pasku adresu ani historii.
+  function obsluzLinkGoscia() {
+    if (typeof location === 'undefined' || !window.URLSearchParams) return;
+    const params = new URLSearchParams(location.search);
+    const gist = params.get('gist');
+    if (!gist) return;
+    history.replaceState({}, '', location.pathname);
+    if (Dane.stanSync().tokenOgon) return;
+    Dane.ustawKonfiguracje({ idGista: gist }).catch(function () { /* zly link — konfiguracja zostaje pusta */ });
+  }
+
   function init() {
     // Statystyki nie mają jeszcze własnego pliku (dopiero faza 2) —
     // zakładka wyszarzona rejestrowana jest tu wprost.
     zarejestrujWidok({ id: 'statystyki', etykieta: 'Statystyki', aktywny: false });
 
+    obsluzLinkGoscia();
     zmierzSuwak();
     wstrzyknijWersje();
 
     const gearBtn = document.getElementById('ustawieniaBtn');
     if (gearBtn) gearBtn.addEventListener('click', function () { przelacz('ustawienia'); });
 
-    const pierwszy = widoki.find(function (w) { return w.aktywny; });
+    const pierwszy = widoki.find(function (w) { return dostepny(w); });
     if (pierwszy) przelacz(pierwszy.id);
     else renderNawigacji();
+
+    // Dane przychodzace z Gista (start apki, "Odswiez", wyslanie z drugiego urzadzenia,
+    // rozstrzygniecie linku gościa powyzej) trafiaja tu z opoznieniem. Widok sam decyduje,
+    // czy i kiedy sie przerysowac (patrz odswiez() w rejestracji kazdego widoku) — nigdy
+    // nie robimy tu pelnego remountu, bo zabiloby to np. trening w toku w Trackerze.
+    // Wyjatek: jesli tryb zmienil sie tak, ze biezacy widok przestal byc dostepny
+    // (np. link gościa doszedl, gdy uzytkownik juz stal na Trackerze), przelaczamy go.
+    Dane.nasluchuj(function (e) {
+      const biezacy = znajdzWidok(aktywnyId);
+      if (biezacy && !dostepny(biezacy)) {
+        const zamiennik = widoki.find(function (w) { return dostepny(w); });
+        if (zamiennik) { przelacz(zamiennik.id); return; }
+      }
+      if (biezacy && biezacy.odswiez) biezacy.odswiez();
+      renderNawigacji();
+      renderSyncBanner();
+    });
 
     schowajSplash();
   }
@@ -134,5 +255,5 @@ window.App = (function () {
 
   document.addEventListener('DOMContentLoaded', init);
 
-  return { zarejestrujWidok, kopiujDoSchowka };
+  return { zarejestrujWidok, kopiujDoSchowka, przerysuj };
 })();

@@ -648,7 +648,12 @@ window.Tracker = (function () {
     // Po zapisie wracamy na ekran startowy — potwierdzenie leci w komunikacie tam.
     // Kopię do Excela robi się wcześniej: karta eksportu jest na ekranie od momentu
     // wpisania czasu końcowego.
-    komunikatStartu = 'Zapisano sesję (' + swimDist() + 'm, ' + Model.fmtCzas(sesja.koniec.sec) + ').';
+    // Zapis lokalny jest natychmiastowy i pewny; wysylka do Gista idzie w tle (js/dane.js).
+    // Offline apka i tak nie traci danych — tylko warto o tym uprzedzic, zeby ktos nie
+    // zamknal apki przekonany, ze trening juz jest w chmurze.
+    const dopisekOffline = (Dane.tryb() === 'wlasciciel' && navigator.onLine === false)
+      ? ' — wyślę do Gista, gdy wróci internet' : '';
+    komunikatStartu = 'Zapisano sesję (' + swimDist() + 'm, ' + Model.fmtCzas(sesja.koniec.sec) + ')' + dopisekOffline + '.';
     resetTrening();
   }
 
@@ -780,8 +785,13 @@ window.Tracker = (function () {
     id: 'tracker',
     etykieta: 'Tracker',
     aktywny: true,
+    wymagaZapisu: true,
     montuj: montuj,
-    odmontuj: odmontuj
+    odmontuj: odmontuj,
+    // Trening w toku zyje wylacznie w zmiennej `sesja` w pamieci — przerysowanie
+    // w trakcie wpisywania splitow by go skasowalo. Sesja w toku i tak dojdzie do
+    // swiezego dokumentu przy zapisie (on i tak woła Dane.wczytaj() na nowo).
+    odswiez: function () { if (!sesjaRozpoczeta) render(); }
   });
 
   return {};
