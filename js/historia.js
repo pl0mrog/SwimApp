@@ -52,10 +52,6 @@ window.Historia = (function () {
     return NAZWY_MIESIECY[Number(kluczMiesiac.slice(5, 7)) - 1];
   }
 
-  function fmtMetry(m) {
-    return m.toLocaleString('pl-PL') + 'm';
-  }
-
   function renderNaglowekGrupy(klucz, liczbaSesji, metry, tekstEtykiety, klasaDodatkowa, zbior) {
     const rozwinieta = zbior.has(klucz);
     const wiersz = document.createElement('div');
@@ -64,7 +60,7 @@ window.Historia = (function () {
     strzalka.className = 'historia-strzalka';
     strzalka.textContent = rozwinieta ? '▾' : '▸';
     const tekst = document.createElement('span');
-    tekst.textContent = tekstEtykiety + '  (' + liczbaSesji + ', ' + fmtMetry(metry) + ')';
+    tekst.textContent = tekstEtykiety + '  (' + liczbaSesji + ', ' + Model.fmtMetry(metry) + ')';
     wiersz.appendChild(strzalka);
     wiersz.appendChild(tekst);
     wiersz.addEventListener('click', function () {
@@ -149,7 +145,7 @@ window.Historia = (function () {
       const reczny = s.recznyDystans != null;
       const tag = nazwaTagu(s.tag);
       tekst.textContent = s.data + '  —  ' + (s.basen ? s.basen + 'm basen' : 'basen: brak danych') + '  —  ' +
-        Model.dystans(s) + 'm' +
+        Model.fmtMetry(Model.dystans(s)) +
         (reczny
           ? '  (wpis ręczny' + (s.recznyCzas != null ? ', ' + Model.fmtCzas(s.recznyCzas) : '') + ')'
           : '  —  ' + Model.fmtCzas(Model.czasRazem(s))) +

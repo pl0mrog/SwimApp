@@ -26,6 +26,14 @@ window.Model = (function () {
     return m + ':' + (s < 10 ? '0' : '') + s;
   }
 
+  // Dystans z separatorem tysiecy. `useGrouping:true` jest konieczne: polski domyslny
+  // tryb grupowania to "min2", czyli 17000 → "17 000", ale 4600 → "4600" (bez spacji).
+  // Tylko do wyswietlania — eksport do Excela zostaje surowa liczba (patrz buildExportExcel).
+  function fmtMetry(m) {
+    if (m == null || isNaN(m)) return '';
+    return m.toLocaleString('pl-PL', { useGrouping: true }) + 'm';
+  }
+
   function fmtExcel(sec) {
     if (sec == null || isNaN(sec)) return '';
     const m = Math.floor(sec / 60), s = sec % 60;
@@ -159,6 +167,7 @@ window.Model = (function () {
     MILESTONES: MILESTONES,
     parsujCzas: parsujCzas,
     fmtCzas: fmtCzas,
+    fmtMetry: fmtMetry,
     fmtExcel: fmtExcel,
     secNaCyfry: secNaCyfry,
     dystans: dystans,

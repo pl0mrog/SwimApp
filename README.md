@@ -6,7 +6,7 @@ jako statyczna strona.
 
 Projekt hobbystyczny, nie komercyjny. Powstaje przy okazji nauki [Claude Code](https://claude.com/claude-code).
 
-**Wersja:** 1.0
+**Wersja:** 1.0.1
 
 ## Co potrafi
 
@@ -22,8 +22,9 @@ Projekt hobbystyczny, nie komercyjny. Powstaje przy okazji nauki [Claude Code](h
 - **Synchronizacja przez GitHub Gist** — dane widoczne na kilku urządzeniach: zapis lokalny
   jest zawsze natychmiastowy i pewny, wysyłka do Gista idzie w tle. Przy równoczesnym zapisie
   z dwóch urządzeń apka pyta, jak rozstrzygnąć konflikt, zamiast po cichu coś nadpisać.
-- **Link do podglądu dla znajomych** — osobny link daje dostęp tylko do odczytu (te same dane,
-  bez możliwości zapisu, edycji ani dodawania treningów).
+- **Link do podglądu dla znajomych** — osobny link daje dostęp tylko do odczytu: te same dane
+  i wszystkie zakładki (można też poklikać sam tracker, żeby zobaczyć jak działa), ale bez
+  możliwości zapisu, edycji ani dodawania treningów.
 
 ## Pod telefon
 

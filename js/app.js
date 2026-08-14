@@ -10,10 +10,11 @@ window.App = (function () {
     return widoki.find(function (w) { return w.id === id; });
   }
 
-  // Widok wymagajacy zapisu (np. Tracker) jest niedostepny w trybie gosc — bez wlasnej
-  // flagi "jestem gosciem": wynika wprost z Dane.tryb(), zeby nie bylo dwoch zrodel prawdy.
+  // Od v1.0.1 zaden widok nie jest chowany przed gosciem — Tracker tez ma byc widoczny,
+  // zeby dalo sie pokazac znajomym jak dziala. Zapis blokuja same widoki (patrz
+  // `czyGosc()` w js/tracker.js), nie nawigacja. „Nieaktywny" znaczy juz tylko „wkrotce".
   function dostepny(w) {
-    return w.aktywny && !(w.wymagaZapisu && typeof Dane !== 'undefined' && Dane.tryb() === 'gosc');
+    return w.aktywny;
   }
 
   function renderNawigacji() {
@@ -27,7 +28,7 @@ window.App = (function () {
         btn.disabled = true;
         // bez dopisku „(wkrótce)" — pasek nawigacji nie przewija się i musi się zmieścić
         btn.textContent = w.etykieta;
-        btn.title = w.aktywny ? 'Tylko odczyt — wklej token w Ustawieniach, żeby zapisywać' : 'Wkrótce';
+        btn.title = 'Wkrótce';
       } else {
         btn.classList.add(w.id === aktywnyId ? 'active' : 'inactive');
         btn.textContent = w.etykieta;

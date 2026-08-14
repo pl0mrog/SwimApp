@@ -36,6 +36,14 @@ window.Tracker = (function () {
     return Model.dystans(sesja);
   }
 
+  // Gosc widzi caly Tracker i moze go klikac — blokujemy wylacznie sam zapis (v1.0.1).
+  // Zrodlem prawdy jest Dane.tryb(), nie wlasna flaga; sprawdzamy przy kazdym uzyciu,
+  // bo token mozna wkleic albo usunac bez przeladowania strony.
+  const KOMUNIKAT_GOSCIA = 'Tryb tylko do odczytu — zapis wymaga tokenu (Ustawienia → Synchronizacja).';
+  function czyGosc() {
+    return Dane.tryb() === 'gosc';
+  }
+
   function montuj(kontener) {
     kontenerGlobalny = kontener;
     render();
@@ -220,6 +228,7 @@ window.Tracker = (function () {
     manualCb.addEventListener('change', function () {
       manualRow.style.display = manualCb.checked ? '' : 'none';
       if (manualCb.checked) {
+        if (czyGosc()) kontener.querySelector('#manualMsg').textContent = KOMUNIKAT_GOSCIA;
         manualDystans.focus();
       } else {
         // odznaczenie czyści wpisane wartości i chowa klawiaturę — inaczej
@@ -233,7 +242,12 @@ window.Tracker = (function () {
       }
     });
 
-    kontener.querySelector('#manualZapisz').addEventListener('click', function () { zapiszTreningReczny(kontener); });
+    const manualZapisz = kontener.querySelector('#manualZapisz');
+    manualZapisz.addEventListener('click', function () { zapiszTreningReczny(kontener); });
+    if (czyGosc()) {
+      manualZapisz.disabled = true;
+      manualZapisz.title = KOMUNIKAT_GOSCIA;
+    }
   }
 
   // Ostrzeżenie, nie blokada — duplikat daty sprawdzamy wyłącznie tutaj, w Trackerze.
@@ -412,6 +426,7 @@ window.Tracker = (function () {
   }
 
   function zapiszTreningReczny(kontener) {
+    if (czyGosc()) { kontener.querySelector('#manualMsg').textContent = KOMUNIKAT_GOSCIA; return; }
     const inp = kontener.querySelector('#manualDystans');
     const czasInp = kontener.querySelector('#manualCzas');
     const dystansM = parseInt(inp.value, 10);
@@ -631,6 +646,7 @@ window.Tracker = (function () {
   }
 
   function zapiszSesje(kontener) {
+    if (czyGosc()) { pokazZapisMsg(kontener, KOMUNIKAT_GOSCIA); return; }
     if (!sesja.splity.length) { pokazZapisMsg(kontener, 'Brak splitów — nie ma czego zapisać.'); return; }
     if (sesja.koniec.sec == null) { pokazZapisMsg(kontener, 'Brak czasu końcowego — zakończ trening przed zapisem.'); return; }
     if (!Model.czyPoprawnaSesja(sesja)) { pokazZapisMsg(kontener, 'Dane sesji są niepoprawne — sprawdź czasy.'); return; }
@@ -751,12 +767,18 @@ window.Tracker = (function () {
     if (secondaryBtn) secondaryBtn.hidden = zakonczony;
     if (dodajBtn) {
       if (zakonczony) {
+        // Gosc dochodzi az tutaj — wpisuje splity i konczy trening jak wlasciciel,
+        // wyszarza sie dopiero sam zapis (razem z wyjasnieniem, czemu nie dziala).
+        const gosc = czyGosc();
         dodajBtn.textContent = 'Zapisz…';
-        dodajBtn.disabled = false;
+        dodajBtn.disabled = gosc;
+        dodajBtn.title = gosc ? KOMUNIKAT_GOSCIA : '';
         dodajBtn.onclick = function () { zapiszSesje(kontener); };
+        if (gosc) pokazZapisMsg(kontener, KOMUNIKAT_GOSCIA);
       } else {
         dodajBtn.textContent = 'Dodaj 100 m';
         dodajBtn.disabled = false;
+        dodajBtn.title = '';
         dodajBtn.onclick = function () { addEntry(kontener); };
       }
     }
@@ -785,7 +807,6 @@ window.Tracker = (function () {
     id: 'tracker',
     etykieta: 'Tracker',
     aktywny: true,
-    wymagaZapisu: true,
     montuj: montuj,
     odmontuj: odmontuj,
     // Trening w toku zyje wylacznie w zmiennej `sesja` w pamieci — przerysowanie

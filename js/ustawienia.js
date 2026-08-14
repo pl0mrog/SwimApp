@@ -374,7 +374,7 @@ window.Ustawienia = (function () {
   function opisSesji(s) {
     const reczny = s.recznyDystans != null;
     const tag = s.tag && s.tag !== 'brak' ? s.tag : '';
-    return s.data + '  —  ' + Model.dystans(s) + 'm' +
+    return s.data + '  —  ' + Model.fmtMetry(Model.dystans(s)) +
       (reczny
         ? '  (wpis ręczny' + (s.recznyCzas != null ? ', ' + Model.fmtCzas(s.recznyCzas) : '') + ')'
         : '  —  ' + Model.fmtCzas(Model.czasRazem(s))) +

@@ -47,6 +47,12 @@ body{
   touch-action:manipulation;   /* bez przybliżania po podwójnym tapnięciu */
   transition:background-color .35s ease;
 }
+/* iOS Safari: elementy disabled potrafią olać touch-action odziedziczone z body
+   i wracają do domyślnego zoomu podwójnym stuknięciem (np. checkbox w Planie
+   dla gościa) — trzeba ustawić wprost na samym elemencie. */
+button:disabled,input:disabled{
+  touch-action:manipulation;
+}
 /* Tło <body> maluje canvas, czyli także pas poza viewportem (na iPhonie pod paskiem
    gestów). Ekran startowy jest fixed i tam nie sięga — bez tego na dole widać
    ciemniejszy pas. Klasę zdejmuje js/app.js razem z wygaszeniem ekranu. */
@@ -133,7 +139,15 @@ body.splash-on{background:var(--navy);}
 .nav-pill.inactive{background:transparent;color:var(--text-dim);}
 .nav-pill.inactive:hover{color:var(--text);}
 .nav-pill.disabled{background:transparent;color:oklch(0.5 0.02 235);cursor:not-allowed;}
-@media (max-width:430px){.navrow{gap:2px;}.nav-pill{padding:8px 10px;}}
+/* Na telefonie zostawało sporo pustego miejsca między „Statystyki" a kołem zębatym.
+   `space-between` rozdziela dokładnie tyle, ile realnie zostało na danym ekranie —
+   bez sztywnej wartości, która na 393 px byłaby za mała, a na 375 px wypchnęłaby
+   zakładkę poza pasek. `gap` zostaje minimum na wypadek ekranu bez zapasu (320 px). */
+@media (max-width:430px){
+  .nav-shell{gap:14px;}   /* inaczej ostatnia pastylka ociera się o koło zębate */
+  .navrow{gap:2px;justify-content:space-between;}
+  .nav-pill{padding:8px 10px;}
+}
 /* proporcje jak .nav-pill (pastylka w poprzek), nie kółko — globalne
    button{min-height:44px} robiło z tego pionowe "jajo" */
 .gear-btn{flex-shrink:0;display:flex;align-items:center;justify-content:center;
