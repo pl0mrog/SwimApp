@@ -68,10 +68,11 @@ window.App = (function () {
 
   // Animacja ekranu startowego (zalewanie pastylek + napis) siedzi w CSS i startuje
   // razem z pierwszym rysowaniem strony — tutaj zostaje samo chowanie ekranu.
-  // ANIMACJA_MS to moment zapalenia ostatniej pastylki (musi się zgadzać z opóźnieniami
-  // w .splash-bar), PAUZA_MS — jak długo trzymamy gotowy ekran. Element usuwamy dopiero
-  // po wygaszeniu, żeby nie przechwytywał kliknięć w przezroczystym stanie.
-  const ANIMACJA_MS = 1700;
+  // ANIMACJA_MS to moment, w którym animacja się kończy — czyli koniec wchodzenia napisu
+  // (2120 ms opóźnienia + 420 ms samego napisu; musi się zgadzać z .splash-wordmark
+  // i opóźnieniami w .splash-bar). PAUZA_MS — jak długo trzymamy gotowy ekran. Element
+  // usuwamy dopiero po wygaszeniu, żeby nie przechwytywał kliknięć w przezroczystym stanie.
+  const ANIMACJA_MS = 2540;
   const PAUZA_MS = 1000;
 
   function schowajSplash() {

@@ -59,8 +59,9 @@ body.splash-on{background:var(--navy);}
 .splash.ukryty{opacity:0;pointer-events:none;}
 .splash-mark{display:flex;flex-direction:column;align-items:center;gap:14px;}
 /* Pasek ładowania: kolor zalewa pastylki od lewej (1700 ms, ostatnia odrobinę wolniej),
-   a każda podskakuje w chwili, gdy zalanie mija jej prawą krawędź. Napis wchodzi razem
-   z czwartą pastylką. Wszystko na CSS i startuje z pierwszym rysowaniem strony —
+   a każda podskakuje w chwili, gdy zalanie mija jej prawą krawędź. Napis wchodzi dopiero
+   po podskoku czwartej pastylki (1700 + 420 ms), nie równo z nią — wariant B z rundy 8.
+   Wszystko na CSS i startuje z pierwszym rysowaniem strony —
    js/app.js tylko chowa ekran po animacji (ANIMACJA_MS + PAUZA_MS). */
 .splash-bar{display:flex;gap:3.56px;position:relative;}
 .splash-bar i{width:17.9px;height:9.79px;border-radius:4.9px;background:oklch(1 0 0 / 0.12);
@@ -95,7 +96,7 @@ body.splash-on{background:var(--navy);}
   75%,100%{background:var(--accent-info);transform:scale(1)}
 }
 .splash-wordmark{font-family:var(--font-display);font-size:34px;font-weight:700;letter-spacing:-0.01em;
-  opacity:0;animation:splash-napis 420ms ease forwards 1700ms;}
+  opacity:0;animation:splash-napis 420ms ease forwards 2120ms;}
 @keyframes splash-napis{
   0%{opacity:0;transform:scale(.82)}
   55%{opacity:1;transform:scale(1.07)}
