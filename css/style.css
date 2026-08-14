@@ -45,7 +45,12 @@ body{
   font-family:var(--font-body),system-ui,-apple-system,sans-serif;
   font-size:14px;color:var(--text);background:var(--bg);
   touch-action:manipulation;   /* bez przybliżania po podwójnym tapnięciu */
+  transition:background-color .35s ease;
 }
+/* Tło <body> maluje canvas, czyli także pas poza viewportem (na iPhonie pod paskiem
+   gestów). Ekran startowy jest fixed i tam nie sięga — bez tego na dole widać
+   ciemniejszy pas. Klasę zdejmuje js/app.js razem z wygaszeniem ekranu. */
+body.splash-on{background:var(--navy);}
 
 /* ===== ekran startowy (Design/SwimApp-assets §7b) ===== */
 .splash{position:fixed;inset:0;z-index:100;background:var(--navy);
@@ -119,13 +124,15 @@ body{
 
 /* ===== shell: nav pills (§4.1) ===== */
 .nav-shell{display:flex;align-items:center;gap:8px;padding-bottom:10px;}
-.navrow{display:flex;gap:6px;overflow-x:auto;flex:1 1 auto;min-width:0;-ms-overflow-style:none;scrollbar-width:none;}
-.navrow::-webkit-scrollbar{display:none;}
+/* bez przewijania w poziomie: dało się zepchnąć zakładkę poza ekran i „zgubić" ją.
+   Wszystkie cztery muszą się zmieścić — stąd węższe pastylki na wąskich ekranach. */
+.navrow{display:flex;gap:6px;flex:1 1 auto;min-width:0;overflow:hidden;}
 .nav-pill{border:none;border-radius:var(--r-pill);padding:8px 16px;font-family:var(--font-body);font-size:12px;font-weight:700;white-space:nowrap;cursor:pointer;min-height:32px;}
 .nav-pill.active{background:var(--accent-confirm);color:var(--text);}
 .nav-pill.inactive{background:transparent;color:var(--text-dim);}
 .nav-pill.inactive:hover{color:var(--text);}
 .nav-pill.disabled{background:transparent;color:oklch(0.5 0.02 235);cursor:not-allowed;}
+@media (max-width:430px){.navrow{gap:2px;}.nav-pill{padding:8px 10px;}}
 /* proporcje jak .nav-pill (pastylka w poprzek), nie kółko — globalne
    button{min-height:44px} robiło z tego pionowe "jajo" */
 .gear-btn{flex-shrink:0;display:flex;align-items:center;justify-content:center;
@@ -356,18 +363,21 @@ button:disabled{opacity:0.4;cursor:not-allowed;}
 .tracker-panel{flex-shrink:0;background:var(--navy);border-top:1px solid var(--divider-strong);
   padding-bottom:env(safe-area-inset-bottom);}
 .tracker-panel.ukryty{display:none;}
-.tracker-panel-inner{max-width:680px;margin:0 auto;padding:8px var(--s4) 18px;}
-.panel-target{font-family:var(--font-numeric);font-size:12px;color:var(--text-dim);margin-bottom:6px;}
+/* padding-bottom celowo mały — pod spodem jest już env(safe-area-inset-bottom) na
+   .tracker-panel, a każdy odzyskany piksel to wyższa lista splitów */
+.tracker-panel-inner{max-width:680px;margin:0 auto;padding:6px var(--s4) 4px;}
+/* Wiersz z dystansem: z lewej „następne 600 m", z prawej podgląd („= 0:37") albo błąd.
+   Stała wysokość, nie min-height — inaczej panel podskakuje przy każdym znaku. */
+.panel-top{display:flex;align-items:center;justify-content:space-between;gap:8px;height:20px;margin-bottom:6px;overflow:hidden;}
+.panel-target{font-family:var(--font-numeric);font-size:12px;color:var(--text-dim);white-space:nowrap;}
+.panel-hint{display:flex;align-items:center;gap:8px;min-width:0;}
 .panel-row{display:flex;gap:8px;}
 .panel-row input[type=text]{flex:1;width:auto;height:48px;box-sizing:border-box;font-size:16px;text-align:left;padding-left:14px;background:var(--chip-input);}
 .panel-row .toggle-btn{height:48px;box-sizing:border-box;flex-shrink:0;}
 .panel-row .toggle-btn.active{background:var(--accent-warn);color:oklch(0.15 0.02 60);}
-/* stała wysokość, nie min-height: podgląd „= 0:37" i komunikat błędu mają różne
-   metryki, a panel nie może skakać przy każdym wpisanym znaku */
-.panel-preview{display:flex;justify-content:space-between;align-items:center;height:20px;margin-top:2px;overflow:hidden;}
-.panel-preview .preview{line-height:1.2;}
-.panel-err{font-size:12px;line-height:1.2;color:var(--accent-warn);min-height:0;margin-top:0;}
-.panel-buttons{display:flex;gap:8px;margin-top:6px;}
+.panel-hint .preview{line-height:1.2;white-space:nowrap;}
+.panel-err{font-size:12px;line-height:1.2;color:var(--accent-warn);min-height:0;margin-top:0;text-align:right;}
+.panel-buttons{display:flex;gap:8px;margin-top:4px;}
 .panel-buttons button{margin:0;}
 .panel-buttons .btn-secondary{flex:1;}
 .panel-buttons .btn-primary{flex:1.7;}

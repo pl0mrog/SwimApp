@@ -360,7 +360,8 @@ window.Tracker = (function () {
       const sec = Model.parsujCzas(str);
       if (str.length >= 2 && sec === null) {
         preview.textContent = '';
-        setErr(kontener, 'Nieprawidłowy czas – sekundy nie mogą być ≥ 60');
+        // krótko, bo komunikat dzieli wiersz z dystansem — pełne zdanie jest w dialogach
+        setErr(kontener, 'sekundy muszą być < 60');
       } else if (sec !== null) {
         preview.textContent = '= ' + Model.fmtCzas(sec);
         setErr(kontener, '');
@@ -382,7 +383,7 @@ window.Tracker = (function () {
     });
 
     kontener.querySelector('#secondaryBtn').addEventListener('click', function () {
-      if (zakonczony) nowyTrening(); else pokazEndPrompt(kontener);
+      pokazEndPrompt(kontener);
     });
   }
 
@@ -390,12 +391,16 @@ window.Tracker = (function () {
     return '<footer class="tracker-panel">' +
       '<div class="tracker-panel-inner">' +
         '<div id="panelUndoArea"></div>' +
-        '<div class="panel-target" id="panelTarget"></div>' +
+        // podgląd („= 0:37") i błąd idą w prawy koniec wiersza z dystansem, nie pod pole —
+        // osobny wiersz pod polem kosztował 22 px wysokości panelu
+        '<div class="panel-top">' +
+          '<span class="panel-target" id="panelTarget"></span>' +
+          '<span class="panel-hint"><span class="preview" id="preview"></span><span class="panel-err err-msg" id="errMsg"></span></span>' +
+        '</div>' +
         '<div class="panel-row">' +
           '<input type="text" id="mainInput" placeholder="155" maxlength="4">' +
           '<button type="button" class="toggle-btn' + (przerwaAktywna ? ' active' : '') + '" id="przerwaBtn">przerwa</button>' +
         '</div>' +
-        '<div class="panel-preview"><span class="preview" id="preview"></span><span class="panel-err err-msg" id="errMsg"></span></div>' +
         '<div class="keypad-dock" id="mainKeypadDock"></div>' +
         '<div class="panel-buttons">' +
           '<button class="btn-secondary" id="secondaryBtn">Koniec</button>' +
@@ -466,8 +471,8 @@ window.Tracker = (function () {
     const sec = Model.parsujCzas(inp.value);
     if (sec === null || sec === 0) {
       setErr(kontener, sec === 0
-        ? 'Czas nie może być zerowy.'
-        : 'Nieprawidłowy czas – sprawdź czy sekundy są < 60');
+        ? 'czas nie może być zerowy'
+        : 'sekundy muszą być < 60');
       inp.classList.add('err');
       setTimeout(function () { inp.classList.remove('err'); }, 1500);
       return;
@@ -663,21 +668,19 @@ window.Tracker = (function () {
     area.innerHTML =
       '<div class="export-area">' +
         '<div class="lbl">Kliknij w Excelu w pustą komórkę A1 nowego bloku i wklej (Ctrl+V) — cała struktura (Data:, data, tag, basen, nagłówki, splity) wjedzie od razu:</div>' +
-        '<textarea id="csvText" spellcheck="false">' + Model.buildExportExcel(sesja) + '</textarea>' +
+        '<textarea id="csvText" spellcheck="false" readonly inputmode="none">' + Model.buildExportExcel(sesja) + '</textarea>' +
         '<div class="copy-btn-row">' +
           '<button class="small" id="copySchowek">Kopiuj do schowka</button>' +
           '<span class="copied" id="copiedMsg"></span>' +
         '</div>' +
       '</div>';
     const ta = area.querySelector('#csvText');
-    ta.addEventListener('click', function () { ta.select(); });
-    ta.select();
     area.querySelector('#copySchowek').addEventListener('click', function () {
-      ta.select();
-      document.execCommand('copy');
       const msg = area.querySelector('#copiedMsg');
-      msg.textContent = 'Skopiowano!';
-      setTimeout(function () { msg.textContent = ''; }, 2000);
+      App.kopiujDoSchowka(ta, function () {
+        msg.textContent = 'Skopiowano!';
+        setTimeout(function () { msg.textContent = ''; }, 2000);
+      });
     });
   }
 
@@ -689,11 +692,6 @@ window.Tracker = (function () {
     endPromptOtwarty = false;
     sesjaRozpoczeta = false;   // z powrotem na ekran startowy
     render();
-  }
-
-  function nowyTrening() {
-    if (sesja.splity.length && !confirm('Zresetować dane treningu? Niezapisane dane zostaną utracone.')) return;
-    resetTrening();
   }
 
   function anulujTrening() {
@@ -743,7 +741,9 @@ window.Tracker = (function () {
 
     const secondaryBtn = kontener.querySelector('#secondaryBtn');
     const dodajBtn = kontener.querySelector('#dodajBtn');
-    if (secondaryBtn) secondaryBtn.textContent = zakonczony ? 'Nowy' : 'Koniec';
+    // Po zakończeniu treningu zostaje samo „Zapisz…" — do wycofania służy „Cofnij
+    // zakończenie", a nowa sesja i tak zaczyna się od ekranu startowego po zapisie.
+    if (secondaryBtn) secondaryBtn.hidden = zakonczony;
     if (dodajBtn) {
       if (zakonczony) {
         dodajBtn.textContent = 'Zapisz…';

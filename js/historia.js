@@ -188,21 +188,19 @@ window.Historia = (function () {
         eksportDiv.innerHTML =
           '<div class="export-area">' +
             '<div class="lbl">Kliknij w Excelu w pustą komórkę A1 nowego bloku i wklej (Ctrl+V):</div>' +
-            '<textarea id="csvTextHist" spellcheck="false">' + Model.buildExportExcel(s) + '</textarea>' +
+            '<textarea id="csvTextHist" spellcheck="false" readonly inputmode="none">' + Model.buildExportExcel(s) + '</textarea>' +
             '<div class="copy-btn-row">' +
               '<button class="small" id="copySchowekHist">Kopiuj do schowka</button>' +
               '<span class="copied" id="copiedMsgHist"></span>' +
             '</div>' +
           '</div>';
         const ta = eksportDiv.querySelector('#csvTextHist');
-        ta.addEventListener('click', function () { ta.select(); });
-        ta.select();
         eksportDiv.querySelector('#copySchowekHist').addEventListener('click', function () {
-          ta.select();
-          document.execCommand('copy');
           const msg = eksportDiv.querySelector('#copiedMsgHist');
-          msg.textContent = 'Skopiowano!';
-          setTimeout(function () { msg.textContent = ''; }, 2000);
+          App.kopiujDoSchowka(ta, function () {
+            msg.textContent = 'Skopiowano!';
+            setTimeout(function () { msg.textContent = ''; }, 2000);
+          });
         });
       });
 

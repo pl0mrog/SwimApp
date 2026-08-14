@@ -6,7 +6,7 @@ jako statyczna strona.
 
 Projekt hobbystyczny, nie komercyjny. Powstaje przy okazji nauki [Claude Code](https://claude.com/claude-code).
 
-**Wersja:** 0.9.8
+**Wersja:** 0.9.9
 
 ## Co potrafi
 

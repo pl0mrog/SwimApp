@@ -19,7 +19,9 @@ window.App = (function () {
       if (!w.aktywny) {
         btn.classList.add('disabled');
         btn.disabled = true;
-        btn.textContent = w.etykieta + ' (wkrótce)';
+        // bez dopisku „(wkrótce)" — pasek nawigacji nie przewija się i musi się zmieścić
+        btn.textContent = w.etykieta;
+        btn.title = 'Wkrótce';
       } else {
         btn.classList.add(w.id === aktywnyId ? 'active' : 'inactive');
         btn.textContent = w.etykieta;
@@ -83,6 +85,9 @@ window.App = (function () {
     const uplynelo = animacja && animacja.currentTime ? animacja.currentTime : 0;
     setTimeout(function () {
       splash.classList.add('ukryty');
+      // tło <body> maluje też obszar poza viewportem (pod paskiem gestów iPhone'a) —
+      // przez czas ekranu startowego musi być granatowe, inaczej na dole widać ciemniejszy pas
+      document.body.classList.remove('splash-on');
       setTimeout(function () { splash.remove(); }, 400);
     }, Math.max(0, ANIMACJA_MS + PAUZA_MS - uplynelo));
   }
@@ -105,7 +110,28 @@ window.App = (function () {
     schowajSplash();
   }
 
+  // Kopiowanie treści pola eksportu bez wchodzenia w nie fokusem — stare
+  // `select() + execCommand('copy')` podnosiło na iOS klawiaturę systemową.
+  // Clipboard API działa tylko po https (GitHub Pages) i na localhost; przy pliku
+  // z dysku zostaje stara ścieżka, dlatego jest tu jeszcze fallback.
+  function kopiujDoSchowka(pole, poSukcesie) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(pole.value).then(poSukcesie, function () {
+        kopiujStaraDroga(pole, poSukcesie);
+      });
+      return;
+    }
+    kopiujStaraDroga(pole, poSukcesie);
+  }
+
+  function kopiujStaraDroga(pole, poSukcesie) {
+    pole.select();
+    document.execCommand('copy');
+    pole.blur();
+    poSukcesie();
+  }
+
   document.addEventListener('DOMContentLoaded', init);
 
-  return { zarejestrujWidok };
+  return { zarejestrujWidok, kopiujDoSchowka };
 })();
