@@ -144,7 +144,8 @@ window.Historia = (function () {
     function aktualizujWiersz() {
       const reczny = s.recznyDystans != null;
       const tag = nazwaTagu(s.tag);
-      tekst.textContent = s.data + '  —  ' + (s.basen ? s.basen + 'm basen' : 'basen: brak danych') + '  —  ' +
+      const basenInfo = s.basen ? s.basen + 'm basen' : '';
+      tekst.textContent = s.data + (basenInfo ? '  —  ' + basenInfo : '') + '  —  ' +
         Model.fmtMetry(Model.dystans(s)) +
         (reczny
           ? '  (wpis ręczny' + (s.recznyCzas != null ? ', ' + Model.fmtCzas(s.recznyCzas) : '') + ')'

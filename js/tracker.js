@@ -22,7 +22,7 @@ window.Tracker = (function () {
     return {
       id: null,
       data: new Date().toISOString().slice(0, 10),
-      basen: dok.ustawienia.ostatniBasen || 25,
+      basen: dok.ustawienia.ostatniBasen != null ? dok.ustawienia.ostatniBasen : 25,
       tag: PRESETY_TAGOW[0],
       splity: [],
       zbiorcze: {},
@@ -138,6 +138,7 @@ window.Tracker = (function () {
         '<div class="param-row"><input type="date" id="metaData" class="chip" title="Data"></div>' +
         '<div class="err-msg" id="dataMsg"></div>' +
         '<div class="param-row toggle-group" id="basenGroup">' +
+          '<button type="button" class="toggle-btn" data-basen="">brak danych</button>' +
           '<button type="button" class="toggle-btn" data-basen="25">25 m</button>' +
           '<button type="button" class="toggle-btn" data-basen="50">50 m</button>' +
         '</div>' +
@@ -163,7 +164,7 @@ window.Tracker = (function () {
   }
 
   function sesjaSummaryTekst() {
-    return sesja.data + ' · ' + sesja.basen + ' m';
+    return sesja.data + ' · ' + (sesja.basen ? sesja.basen + ' m' : 'basen: brak danych');
   }
 
   function wireSesjaCard(kontener) {
@@ -186,10 +187,10 @@ window.Tracker = (function () {
     odswiezOstrzezenieDaty(kontener);
 
     const basenGroup = kontener.querySelector('#basenGroup');
-    ustawAktywny(basenGroup, sesja.basen === 25 ? '25' : '50');
+    ustawAktywny(basenGroup, sesja.basen ? String(sesja.basen) : '');
     basenGroup.querySelectorAll('.toggle-btn').forEach(function (btn) {
       btn.addEventListener('click', function () {
-        sesja.basen = Number(btn.dataset.basen);
+        sesja.basen = btn.dataset.basen ? Number(btn.dataset.basen) : null;
         ustawAktywny(basenGroup, btn.dataset.basen);
         odswiezDynamiczne(kontener);
       });
@@ -261,7 +262,7 @@ window.Tracker = (function () {
 
   function ustawAktywny(grupa, wartosc) {
     grupa.querySelectorAll('.toggle-btn').forEach(function (btn) {
-      const klucz = btn.dataset.basen || btn.dataset.tag;
+      const klucz = btn.dataset.basen !== undefined ? btn.dataset.basen : btn.dataset.tag;
       btn.classList.toggle('active', klucz === wartosc);
     });
   }
