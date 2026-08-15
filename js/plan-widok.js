@@ -43,6 +43,22 @@ window.PlanWidok = (function () {
     render();
   }
 
+  // Odhaczenie w liscie "Caly plan" moze zmienic wysokosc karty "Nastepny trening"
+  // (inny trening staje sie nastepny), co przesuwa cala reszte tresci ponizej - mimo
+  // ze App.przerysuj() przywraca ten sam scrollTop w pikselach, wiersz pod palcem
+  // "skacze", bo zmienila sie tresc NAD nim. Kotwiczymy wiec na samym klikanym
+  // checkboksie: mierzymy jego pozycje w oknie przed przebudowa i po niej, i
+  // doksztalcamy scrollTop o roznice, zeby zostal dokladnie w tym samym miejscu.
+  function odhaczZKotwica(klucz, cb) {
+    const przed = cb.getBoundingClientRect().top;
+    ustawWykonanie(klucz, cb.checked);
+    const scroll = kontenerGlobalny && kontenerGlobalny.querySelector('.view-scroll');
+    const nowyCb = scroll && scroll.querySelector('[data-klucz="' + klucz + '"]');
+    if (scroll && nowyCb) {
+      scroll.scrollTop += nowyCb.getBoundingClientRect().top - przed;
+    }
+  }
+
   // Pierwszy nieodhaczony trening w kolejnosci tydzien -> wariant.
   function nastepnyTrening(lista, zrobione) {
     for (let i = 0; i < lista.length; i++) {
@@ -76,43 +92,49 @@ window.PlanWidok = (function () {
     render();
   }
 
-  // "Odcinek ciągły" / "Seria" / "Seria N" (numerowana tylko gdy w treningu jest
-  // wiecej niz jedna czesc typu "seria" - numer liczony wylacznie wsrod nich).
-  function etykietaCzesci(czesc, indeks, liczone) {
-    if (czesc.typ === 'ciagly') return 'Odcinek ciągły';
-    const wszystkieSerie = liczone.filter(function (c) { return c.typ === 'seria'; }).length;
-    if (wszystkieSerie <= 1) return 'Seria';
-    const numer = liczone.slice(0, indeks + 1).filter(function (c) { return c.typ === 'seria'; }).length;
-    return 'Seria ' + numer;
-  }
-
+  // Ujednolicony zapis dla obu typow czesci liczonych - zawsze "N × Dm", nawet dla
+  // "ciagly" (powtorzenia tam zawsze 1, patrz Plan.czesci()). Wczesniej ciagly mial
+  // osobne "D m ciągiem" - niespojne z zapisem serii obok.
   function opisCzesci(czesc) {
-    return czesc.typ === 'ciagly'
-      ? czesc.dystans + ' m ciągiem'
-      : czesc.powtorzenia + ' × ' + czesc.dystans + ' m';
+    return czesc.powtorzenia + ' × ' + czesc.dystans + ' m';
   }
 
-  // Jeden blok kafelkow 2x2 dla jednej czesci liczonej (§2.3). "ciagly" nie ma
-  // kafelka Przerwa - Tempo i Seria glowna zostaja obok siebie (2 kafelki, siatka
-  // 2-kolumnowa jak dzis). Kafelek, ktory zostaje sam w ostatnim wierszu bloku
-  // (nieparzysta liczba kafelkow), dostaje pelna szerokosc zamiast pustego miejsca.
-  function blokKafelkowHtml(czesc, sumaTekst, def, basen) {
+  // Jedna para etykieta+wartosc w kafelku, owinieta w sum-item - dokladnie ta sama
+  // konstrukcja co kafelekSum() w js/sesja-tabela.js (Tracker). sum-item ma flex:1 1 0,
+  // wiec pary w kafelku dziela jego szerokosc po rowno; bez niego wszystko dociagalo
+  // sie do lewej krawedzi.
+  function sumItem(etykieta, wartosc) {
+    return '<div class="sum-item"><div class="sum-cell-label">' + etykieta +
+      '</div><div class="sum-cell-val">' + wartosc + '</div></div>';
+  }
+
+  // Para kafelkow obok siebie na kazda czesc liczona, wzorowana na parze "Dystans/Suma" +
+  // "Pływanie/Przerwy" z Trackera: lewy kobaltowy (sum-cell-swim, wartosc niebieska),
+  // prawy szary (goly sum-cell, wartosc biala). Oba sa sum-cell-para, nawet gdy mieszcza
+  // jedna wartosc - tylko wtedy sum-item rozklada je tak samo jak w Trackerze. "ciagly"
+  // nie ma przerwy (jeden odcinek, nie ma na co czekac), wiec prawy kafelek ma wtedy sam
+  // kafelek Tempo. Wiele czesci = wiele par pod soba, bez naglowkow miedzy nimi.
+  //
+  // Etykieta lewego kafelka to zawsze "Seria" - pole "opis" z pliku planu bywa cale zdanie
+  // ("pierwsze 200 m świadomie za wolno; po odcinku 30 s przerwy") i rozjezdzalo naglowek.
+  function wierszCzesciHtml(czesc, def, basen) {
     const tempo = Plan.tempoNaBasen(czesc.tempo, def, basen);
     const zakresTitle = czesc.tempoZakres ? 'zakres ' + Plan.tempoNaBasen(czesc.tempoZakres, def, basen) : null;
+    const tempoHtml = sumItem('Tempo', tempo || '—') +
+      (czesc.typ !== 'ciagly' ? sumItem('Przerwa', (czesc.przerwa || 0) + ' s') : '');
+    return '<div class="sum-grid plan-para">' +
+      '<div class="sum-cell sum-cell-para sum-cell-swim">' + sumItem('Seria', opisCzesci(czesc)) + '</div>' +
+      '<div class="sum-cell sum-cell-para"' +
+        (zakresTitle ? ' title="' + zakresTitle + '"' : '') + '>' + tempoHtml + '</div>' +
+    '</div>';
+  }
 
-    const wpisy = [{ etykieta: 'Tempo', wartosc: tempo || '—', klasa: 'sum-cell-swim', title: zakresTitle }];
-    if (czesc.typ !== 'ciagly') wpisy.push({ etykieta: 'Przerwa', wartosc: (czesc.przerwa || 0) + ' s', klasa: 'sum-cell-swim' });
-    wpisy.push({ etykieta: 'Seria główna', wartosc: opisCzesci(czesc), klasa: '' });
-    if (sumaTekst != null) wpisy.push({ etykieta: 'Suma', wartosc: sumaTekst, klasa: '' });
-
-    if (wpisy.length % 2 === 1) {
-      const ostatni = wpisy[wpisy.length - 1];
-      ostatni.klasa = (ostatni.klasa + ' sum-cell-pelny').trim();
-    }
-
-    return '<div class="sum-grid">' + wpisy.map(function (w) {
-      return kafel(w.etykieta, w.wartosc, w.klasa, w.title);
-    }).join('') + '</div>';
+  // Suma to zwykly kafelek na pelna szerokosc (sum-cell-pelny, ta sama klasa co przy
+  // nieparzystej liczbie kafelkow) - etykieta mala jak wszedzie, sama liczba powiekszona.
+  function sumaWierszHtml(sumaTekst) {
+    return '<div class="sum-grid plan-para">' +
+      '<div class="sum-cell sum-cell-para sum-cell-pelny plan-suma">' +
+      sumItem('Suma', sumaTekst) + '</div></div>';
   }
 
   function basenPrzelacznikHtml(basen, def) {
@@ -185,15 +207,13 @@ window.PlanWidok = (function () {
     const tydzien = nastepny.tydzien;
     const gosc = Dane.tryb() === 'gosc';
     const liczone = Plan.czesciLiczone(t);
-    const pokazEtykiety = liczone.length > 1;
     const maKorekte = !!(def.korektaTempa && def.basenDocelowy);
 
     let blokiHtml = '';
-    liczone.forEach(function (czesc, i) {
-      const ostatni = i === liczone.length - 1;
-      if (pokazEtykiety) blokiHtml += '<div class="section-label">' + etykietaCzesci(czesc, i, liczone) + '</div>';
-      blokiHtml += blokKafelkowHtml(czesc, ostatni ? Plan.suma(t) + ' m' : null, def, basen);
+    liczone.forEach(function (czesc) {
+      blokiHtml += wierszCzesciHtml(czesc, def, basen);
     });
+    blokiHtml += sumaWierszHtml(Plan.suma(t) + ' m');
 
     // Linijka informacyjna pod ostatnim blokiem (§2.4): uwaga najpierw, potem
     // rozgrzewka/technika/schlodzenie - bez kolorowego tla, zwykly tekst jak dzis.
@@ -229,17 +249,6 @@ window.PlanWidok = (function () {
     }
 
     return karta;
-  }
-
-  // klasaDodatkowa: 'sum-cell-swim' = kobaltowy wariant kafelka (jak Dystans/Suma w Trackerze).
-  // title: opcjonalny (np. tempoZakres na kafelku Tempo) - specyfikacja nie przewiduje
-  // dla niego wlasnego miejsca w ukladzie kafelkow.
-  function kafel(etykieta, wartosc, klasaDodatkowa, title) {
-    return '<div class="sum-cell' + (klasaDodatkowa ? ' ' + klasaDodatkowa : '') + '"' +
-      (title ? ' title="' + title + '"' : '') + '>' +
-      '<div class="sum-cell-label">' + etykieta + '</div>' +
-      '<div class="sum-cell-val">' + wartosc + '</div>' +
-    '</div>';
   }
 
   function renderCalyPlan(lista, zrobione, nastepny, def, basen) {
@@ -322,10 +331,11 @@ window.PlanWidok = (function () {
       const cb = document.createElement('input');
       cb.type = 'checkbox';
       cb.checked = !!zrobione[klucz];
+      cb.dataset.klucz = klucz;
       if (Dane.tryb() === 'gosc') {
         cb.disabled = true;
       } else {
-        cb.addEventListener('change', function () { ustawWykonanie(klucz, cb.checked); });
+        cb.addEventListener('change', function () { odhaczZKotwica(klucz, cb); });
       }
       const span = document.createElement('span');
       span.textContent = trening.wariant + ' · ' + opisTreningZlozony(trening);

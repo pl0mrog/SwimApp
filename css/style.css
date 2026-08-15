@@ -426,6 +426,21 @@ button:disabled{opacity:0.4;cursor:not-allowed;}
 .plan-dzis-nazwa{font-family:var(--font-display);font-size:14px;font-weight:600;color:var(--text-dim);margin-bottom:2px;}
 .plan-dzis-faza{font-size:12px;color:var(--accent-info);margin-bottom:14px;}
 .plan-dzis-tempo{font-family:var(--font-numeric);font-size:13px;color:var(--text-dim);}
+/* Wygląd 1:1 jak para kafelków „Dystans/Suma" + „Pływanie/Przerwy" w Trackerze: kafelki
+   w wierszu równej szerokości, etykiety i wartości wyrównane do lewej. Jedyna różnica to
+   podział miejsca WEWNĄTRZ kafelka. Tracker dzieli je równo (flex:1 1 0), bo obie wartości
+   są tam równie wąskie („0:00"/„0:00"); tu „2:15/100m" (81 px) jest ponad dwa razy szersze
+   od „45 s" (36 px) i w sztywnej połowie (62 px) nie mieści się przy żadnym rozsądnym
+   foncie. flex-basis:auto daje każdej wartości jej realną szerokość, a wolne miejsce
+   rozdziela po równo — nic nie nachodzi i nic nie jest dociągnięte do prawej krawędzi.
+   minmax(0,1fr) zamiast samego 1fr: 1fr to minmax(auto,1fr), więc poniżej 393 px prawy
+   kafelek puchł pod swoją treść i kafelki przestawały być równe. */
+.plan-para{grid-template-columns:repeat(2,minmax(0,1fr));}
+.plan-para .sum-cell{padding-left:8px;padding-right:8px;}
+.plan-para .sum-cell-para{gap:8px;}
+.plan-para .sum-item{flex:1 1 auto;}
+/* Suma: etykieta mała jak w każdym kafelku, sama liczba większa */
+.plan-suma .sum-cell-val{font-size:20px;}
 .plan-grupa-faza{font-family:var(--font-body);font-weight:700;font-size:14px;}
 .plan-cel{margin:2px 0 8px 22px;}
 .plan-tydzien{display:flex;flex-direction:column;gap:4px;padding:7px 4px 7px 22px;border-bottom:1px solid var(--divider);font-size:13px;}
