@@ -109,11 +109,12 @@ window.App = (function () {
       return;
     }
 
+    // Baner gościa dostaje wąski pasek jednolinijkowy (~24 px), nie pełną kartę —
+    // pełna karta zjadała ~80 px, których w Trackerze na telefonie brakuje.
     if (stanS.tryb === 'gosc' && aktywnyId !== 'ustawienia') {
       el.innerHTML =
-        '<div class="banner">' +
-          '<div class="banner-title">Tryb tylko do odczytu</div>' +
-          '<div class="banner-desc">Podgląd danych. Zapisywanie wymaga tokenu — Ustawienia → Synchronizacja.</div>' +
+        '<div class="banner banner-slim" title="Zapis wymaga tokenu — Ustawienia → Synchronizacja.">' +
+          'Tryb tylko do odczytu — zapis wyłączony' +
         '</div>';
       return;
     }
@@ -197,12 +198,24 @@ window.App = (function () {
     Dane.ustawKonfiguracje({ idGista: gist }).catch(function () { /* zly link — konfiguracja zostaje pusta */ });
   }
 
+  // Realna wysokość okna — patrz --app-h w style.css. Celowo window.innerHeight,
+  // nie visualViewport: ten drugi kurczy się przy natywnym pickerze daty (pole
+  // w karcie „Sesja"), co przestawiałoby układ w trakcie wybierania daty.
+  function ustawWysokoscOkna() {
+    const h = window.innerHeight;
+    if (h > 0) document.documentElement.style.setProperty('--app-h', h + 'px');
+  }
+
   function init() {
     // Statystyki nie mają jeszcze własnego pliku (dopiero faza 2) —
     // zakładka wyszarzona rejestrowana jest tu wprost.
     zarejestrujWidok({ id: 'statystyki', etykieta: 'Statystyki', aktywny: false });
 
     obsluzLinkGoscia();
+    ustawWysokoscOkna();
+    window.addEventListener('resize', ustawWysokoscOkna);
+    // orientationchange na iOS odpala się zanim okno ma finalne wymiary — stąd opóźnienie
+    window.addEventListener('orientationchange', function () { setTimeout(ustawWysokoscOkna, 250); });
     zmierzSuwak();
     wstrzyknijWersje();
 

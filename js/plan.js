@@ -134,6 +134,8 @@ window.Plan = (function () {
             indeksFazy: indeksFazy,
             nazwaFazy: faza.nazwa,
             treningi: blok.treningi,
+            // etykieta tygodnia w bloku (np. "Odciazenie + sprawdzian"), format v2
+            komentarz: blok.komentarz || null,
             testPoTygodniu: null
           });
         });
@@ -143,8 +145,123 @@ window.Plan = (function () {
     return wynik;
   }
 
+  const TYPY_CZESCI = ['rozgrzewka', 'ciagly', 'seria', 'technika', 'schlodzenie'];
+
+  // Normalizuje trening do listy czesci (format v2). Jesli trening ma niepusta
+  // tablice `czesci` - mapuje ja (nieznany typ traktowany jak "seria", zeby nowy typ
+  // w przyszlosci nie wywalal aplikacji). W przeciwnym razie buduje trzy czesci ze
+  // starych pol (v1): rozgrzewka / seria / schlodzenie, pomijajac te o dystans <= 0.
+  // To jest jedyne miejsce, ktore zna kompatybilnosc wsteczna - reszta kodu (widok,
+  // walidacja ostrzezen) widzi juz tylko liste czesci.
+  function czesci(trening) {
+    if (Array.isArray(trening.czesci) && trening.czesci.length) {
+      return trening.czesci.map(function (c) {
+        return {
+          typ: TYPY_CZESCI.indexOf(c.typ) !== -1 ? c.typ : 'seria',
+          dystans: c.dystans,
+          powtorzenia: c.powtorzenia != null ? c.powtorzenia : 1,
+          tempo: c.tempo != null ? c.tempo : null,
+          tempoZakres: c.tempoZakres != null ? c.tempoZakres : null,
+          przerwa: c.przerwa != null ? c.przerwa : 0,
+          opis: c.opis != null ? c.opis : null
+        };
+      });
+    }
+    const wynik = [];
+    if (trening.rozgrzewka > 0) {
+      wynik.push({ typ: 'rozgrzewka', dystans: trening.rozgrzewka, powtorzenia: 1, tempo: null, tempoZakres: null, przerwa: 0, opis: null });
+    }
+    if (trening.seria) {
+      wynik.push({
+        typ: 'seria',
+        dystans: trening.seria.dystans,
+        powtorzenia: trening.seria.powtorzenia,
+        tempo: trening.tempo != null ? trening.tempo : null,
+        tempoZakres: null,
+        przerwa: trening.przerwa != null ? trening.przerwa : 0,
+        opis: null
+      });
+    }
+    if (trening.schlodzenie > 0) {
+      wynik.push({ typ: 'schlodzenie', dystans: trening.schlodzenie, powtorzenia: 1, tempo: null, tempoZakres: null, przerwa: 0, opis: null });
+    }
+    return wynik;
+  }
+
+  // Czesci, ktore dostaja wlasny blok kafelkow w widoku (§2.1 specyfikacji) -
+  // rozgrzewka/schlodzenie/technika trafiaja tylko do linijki tekstowej.
+  function czesciLiczone(trening) {
+    return czesci(trening).filter(function (c) { return c.typ === 'ciagly' || c.typ === 'seria'; });
+  }
+
+  // Suma liczona ze skladnikow (wszystkie czesci), nie przepisywana z pliku -
+  // dla planow v1 daje ten sam wynik co dawny wzor rozgrzewka + seria + schlodzenie.
   function suma(trening) {
-    return trening.rozgrzewka + trening.seria.powtorzenia * trening.seria.dystans + trening.schlodzenie;
+    const wyliczona = czesci(trening).reduce(function (acc, c) { return acc + c.dystans * c.powtorzenia; }, 0);
+    if (trening.dystansRazem != null && trening.dystansRazem !== wyliczona) {
+      console.warn('Plan.suma(): dystansRazem (' + trening.dystansRazem + ') != wyliczona suma (' +
+        wyliczona + ') dla treningu ' + (trening.wariant || trening.nazwa || '?') + '.');
+    }
+    return wyliczona;
+  }
+
+  function formatujCzasKrotki(sek) {
+    sek = Math.round(sek);
+    const m = Math.floor(sek / 60);
+    const s = sek % 60;
+    return m + ':' + (s < 10 ? '0' : '') + s;
+  }
+
+  // Przelicza tempo (albo zakres tempa) na inny basen wg korektaTempa.basen25m z pliku
+  // planu - dziala i na "2:16/100m" (podmienia tylko liczbe, zostawia "/100m"), i na
+  // zakres "2:14–2:20" (podmienia oba konce). Dziala tylko przy przejsciu na 25 m,
+  // gdy plan jest napisany pod inny basen i ma zdefiniowana korekte.
+  function tempoNaBasen(str, definicja, basen) {
+    if (!str || basen !== 25 || !definicja || definicja.basenDocelowy === 25) return str;
+    const korekta = definicja.korektaTempa && definicja.korektaTempa.basen25m;
+    if (typeof korekta !== 'number') return str;
+    return str.replace(/(\d+):([0-5]\d)/g, function (calosc, mm, ss) {
+      return formatujCzasKrotki(Number(mm) * 60 + Number(ss) + korekta);
+    });
+  }
+
+  // Miekkie ostrzezenia przy imporcie (§1.6) - nie blokuja importu, tylko logowane
+  // i pokazane w komunikacie. Limit 5, zeby nie zalac komunikatu dlugim tekstem.
+  function ostrzezenia(obiekt) {
+    const ost = [];
+    function dodaj(msg) { if (ost.length < 5) ost.push(msg); }
+    if (!obiekt || !Array.isArray(obiekt.fazy)) return ost;
+
+    const numeryTygodni = [];
+    obiekt.fazy.forEach(function (faza) {
+      if (!faza || !Array.isArray(faza.bloki)) return;
+      faza.bloki.forEach(function (blok) {
+        if (blok && Array.isArray(blok.tygodnie)) numeryTygodni.push.apply(numeryTygodni, blok.tygodnie);
+        if (!blok || !Array.isArray(blok.treningi)) return;
+        blok.treningi.forEach(function (t) {
+          if (!t) return;
+          const cz = czesci(t);
+          const wyliczona = cz.reduce(function (acc, c) { return acc + c.dystans * c.powtorzenia; }, 0);
+          if (t.dystansRazem != null && t.dystansRazem !== wyliczona) {
+            dodaj('Trening ' + (t.wariant || '?') + ': dystansRazem (' + t.dystansRazem +
+              ') nie zgadza sie z wyliczona suma (' + wyliczona + ').');
+          }
+          cz.forEach(function (c) {
+            if (c.tempo != null && !/^\d+:[0-5]\d\/100m$/.test(c.tempo)) {
+              dodaj('Trening ' + (t.wariant || '?') + ': tempo "' + c.tempo + '" nie pasuje do formatu "M:SS/100m".');
+            }
+          });
+        });
+      });
+    });
+
+    const posortowane = numeryTygodni.slice().sort(function (a, b) { return a - b; });
+    for (let i = 1; i < posortowane.length; i++) {
+      if (posortowane[i] !== posortowane[i - 1] && posortowane[i] !== posortowane[i - 1] + 1) {
+        dodaj('Numeracja tygodni ma przerwe miedzy ' + posortowane[i - 1] + ' a ' + posortowane[i] + '.');
+      }
+    }
+    return ost;
   }
 
   function kluczTreningu(numerTygodnia, wariant) {
@@ -167,6 +284,26 @@ window.Plan = (function () {
     if (!jestString(obiekt.id)) dodaj('Brak pola "id" (albo jest puste).');
     if (!jestString(obiekt.nazwa)) dodaj('Brak pola "nazwa".');
     if (!jestString(obiekt.podtytul)) dodaj('Brak pola "podtytul".');
+    // Pola opcjonalne formatu v2 - sprawdzane tylko jesli obecne w pliku.
+    if (obiekt.basenDocelowy !== undefined && !jestLiczba(obiekt.basenDocelowy)) {
+      dodaj('Pole "basenDocelowy" musi byc liczba.');
+    }
+    if (obiekt.korektaTempa !== undefined) {
+      if (!obiekt.korektaTempa || !jestLiczba(obiekt.korektaTempa.basen25m)) {
+        dodaj('Pole "korektaTempa.basen25m" musi byc liczba.');
+      }
+    }
+    if (obiekt.sekcje !== undefined) {
+      if (!Array.isArray(obiekt.sekcje)) {
+        dodaj('Pole "sekcje" musi byc tablica.');
+      } else {
+        obiekt.sekcje.forEach(function (s, i) {
+          if (!s || !jestString(s.tytul) || !jestString(s.tresc)) {
+            dodaj('Sekcja ' + (i + 1) + ': wymaga pol "tytul" i "tresc".');
+          }
+        });
+      }
+    }
     if (!Array.isArray(obiekt.zasady)) {
       dodaj('Pole "zasady" musi byc tablica.');
     } else {
@@ -213,13 +350,29 @@ window.Plan = (function () {
             const etykTr = etykBlok + ', trening ' + (t && t.wariant ? t.wariant : iTr + 1);
             if (!t || !jestString(t.wariant)) dodaj(etykTr + ': brak pola "wariant".');
             if (!t || !jestString(t.nazwa)) dodaj(etykTr + ': brak pola "nazwa".');
-            if (!t || !jestString(t.tempo)) dodaj(etykTr + ': brak pola "tempo".');
-            if (!t || !jestLiczba(t.rozgrzewka)) dodaj(etykTr + ': pole "rozgrzewka" musi byc liczba.');
-            if (!t || !jestLiczba(t.schlodzenie)) dodaj(etykTr + ': pole "schlodzenie" musi byc liczba.');
-            if (!t || !jestLiczba(t.przerwa)) dodaj(etykTr + ': pole "przerwa" musi byc liczba.');
             if (!t || !jestStringLubNull(t.uwaga)) dodaj(etykTr + ': pole "uwaga" musi byc tekstem albo null.');
-            if (!t || !t.seria || !jestLiczba(t.seria.powtorzenia) || !jestLiczba(t.seria.dystans)) {
-              dodaj(etykTr + ': pole "seria" wymaga liczbowych "powtorzenia" i "dystans".');
+            if (t && Array.isArray(t.czesci) && t.czesci.length) {
+              // format v2: liste czesci sprawdzamy zamiast starych pol
+              t.czesci.forEach(function (c, iCz) {
+                const etykCz = etykTr + ', czesc ' + (iCz + 1);
+                if (!c || !jestString(c.typ)) dodaj(etykCz + ': brak pola "typ".');
+                if (!c || !jestLiczba(c.dystans) || c.dystans <= 0) dodaj(etykCz + ': pole "dystans" musi byc liczba > 0.');
+                if (c && c.powtorzenia != null && (!jestLiczba(c.powtorzenia) || c.powtorzenia <= 0)) {
+                  dodaj(etykCz + ': pole "powtorzenia" musi byc liczba > 0.');
+                }
+                if (c && c.przerwa != null && (!jestLiczba(c.przerwa) || c.przerwa < 0)) {
+                  dodaj(etykCz + ': pole "przerwa" musi byc liczba >= 0.');
+                }
+                if (c && c.tempo != null && !jestString(c.tempo)) dodaj(etykCz + ': pole "tempo" musi byc tekstem.');
+              });
+            } else {
+              if (!t || !jestString(t.tempo)) dodaj(etykTr + ': brak pola "tempo".');
+              if (!t || !jestLiczba(t.rozgrzewka)) dodaj(etykTr + ': pole "rozgrzewka" musi byc liczba.');
+              if (!t || !jestLiczba(t.schlodzenie)) dodaj(etykTr + ': pole "schlodzenie" musi byc liczba.');
+              if (!t || !jestLiczba(t.przerwa)) dodaj(etykTr + ': pole "przerwa" musi byc liczba.');
+              if (!t || !t.seria || !jestLiczba(t.seria.powtorzenia) || !jestLiczba(t.seria.dystans)) {
+                dodaj(etykTr + ': pole "seria" wymaga liczbowych "powtorzenia" i "dystans".');
+              }
             }
           });
         });
@@ -238,8 +391,12 @@ window.Plan = (function () {
     aktywny: aktywny,
     aktywnyId: aktywnyId,
     tygodnie: tygodnie,
+    czesci: czesci,
+    czesciLiczone: czesciLiczone,
     suma: suma,
+    tempoNaBasen: tempoNaBasen,
     kluczTreningu: kluczTreningu,
-    waliduj: waliduj
+    waliduj: waliduj,
+    ostrzezenia: ostrzezenia
   };
 })();

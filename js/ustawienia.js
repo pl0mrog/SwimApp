@@ -27,7 +27,14 @@ window.Ustawienia = (function () {
     kontenerGlobalny = null;
   }
 
+  // render() woła App.przerysuj(), które zapamiętuje scrollTop przed przebudową i
+  // przywraca go po — bez tego każde zaznaczenie checkboxa w akordeonie „Edycja"
+  // (tryb usuwania) przerzucało widok na górę, bo rysuj() tworzy .view-scroll od nowa.
   function render() {
+    App.przerysuj(kontenerGlobalny, rysuj);
+  }
+
+  function rysuj() {
     const kontener = kontenerGlobalny;
     kontener.innerHTML = '';
     const scroll = document.createElement('div');
@@ -160,7 +167,7 @@ window.Ustawienia = (function () {
 
     tresc.querySelector('#planPobierzBtn').addEventListener('click', function () {
       pobierzJSON(
-        { typ: 'swimapp-plan', wersjaFormatu: 1, plan: def, wykonane: zrobione },
+        { typ: 'swimapp-plan', wersjaFormatu: 2, plan: def, wykonane: zrobione },
         'swimapp-plan-' + def.id + '-' + new Date().toISOString().slice(0, 10) + '.json'
       );
     });
@@ -176,8 +183,12 @@ window.Ustawienia = (function () {
       reader.onload = function () {
         input.value = '';
         try {
-          wczytajPlanZPliku(reader.result);
+          const ostrzezenia = wczytajPlanZPliku(reader.result);
           render();
+          if (ostrzezenia && ostrzezenia.length) {
+            const msgEl = kontenerGlobalny.querySelector('#planMsg');
+            if (msgEl) msgEl.textContent = 'Zaimportowano z ostrzeżeniami: ' + ostrzezenia.join(' ');
+          }
         } catch (e) {
           const msgEl = kontenerGlobalny.querySelector('#planMsg');
           if (msgEl) msgEl.textContent = e.message;
@@ -200,6 +211,8 @@ window.Ustawienia = (function () {
     return karta;
   }
 
+  // Zwraca liste miekkich ostrzezen (Plan.ostrzezenia) - import przechodzi mimo nich,
+  // wywolujacy pokazuje je jako informacje, nie blad. Twarde bledy leca przez throw.
   function wczytajPlanZPliku(tekst) {
     let plik;
     try {
@@ -210,17 +223,32 @@ window.Ustawienia = (function () {
     if (!plik || plik.typ !== 'swimapp-plan') {
       throw new Error('To nie jest plik planu SwimApp — użyj „Wczytaj JSON" powyżej dla pełnych danych.');
     }
+    if (plik.wersjaFormatu > 2) {
+      throw new Error('Plik planu w nowszym formacie (wersja ' + plik.wersjaFormatu + ') — zaktualizuj aplikację.');
+    }
     const wynik = Plan.waliduj(plik.plan);
     if (!wynik.ok) {
       throw new Error(wynik.bledy.join(' '));
     }
+
     const dok = Dane.wczytaj();
-    dok.plan.definicja = plik.plan;
-    dok.plan.aktywnyPlan = plik.plan.id;
-    if (!dok.plan.wykonane[plik.plan.id] && plik.wykonane && typeof plik.wykonane === 'object') {
-      dok.plan.wykonane[plik.plan.id] = plik.wykonane;
+    const id = plik.plan.id;
+    const odhaczonychIstniejacych = Object.keys(dok.plan.wykonane[id] || {}).length;
+    if (odhaczonychIstniejacych > 0) {
+      // ten sam id co juz zaimportowany plan - pytamy, czy to poprawiona wersja (zachowaj
+      // postep) czy swiadomy powrot do zera; „Anuluj" w confirm() = wyzeruj
+      const zachowac = confirm('Plan „' + plik.plan.nazwa + '" ma już ' + odhaczonychIstniejacych +
+        ' odhaczonych treningów. OK = zachowaj odhaczenia, Anuluj = zacznij od zera.');
+      if (!zachowac) dok.plan.wykonane[id] = {};
+    } else if (plik.wykonane && typeof plik.wykonane === 'object') {
+      dok.plan.wykonane[id] = plik.wykonane;
     }
+
+    dok.plan.definicja = plik.plan;
+    dok.plan.aktywnyPlan = id;
     Dane.zapisz(dok);
+
+    return Plan.ostrzezenia(plik.plan);
   }
 
   function opisStatusuSync(s) {

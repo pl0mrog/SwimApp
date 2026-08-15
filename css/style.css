@@ -42,6 +42,10 @@ html,body{height:100%;}
 body{
   display:flex;flex-direction:column;
   height:100vh;height:100dvh;overflow:hidden;
+  /* iOS potrafi zostawić 100dvh rozjechane z realnym oknem przy chowaniu paska
+     przeglądarki — dolny panel Trackera wisiał wtedy nad krawędzią ekranu.
+     --app-h ustawia js/app.js z window.innerHeight (fallback: 100dvh). */
+  height:var(--app-h,100dvh);
   font-family:var(--font-body),system-ui,-apple-system,sans-serif;
   font-size:14px;color:var(--text);background:var(--bg);
   touch-action:manipulation;   /* bez przybliżania po podwójnym tapnięciu */
@@ -169,32 +173,23 @@ body.splash-on{background:var(--navy);}
   .view-scroll > *{margin-right:calc(-1 * var(--sb));}
 }
 
-/* ===== tracker: stały układ, przewijają się tylko splity ===== */
-.tracker-layout{flex:1 1 auto;display:flex;flex-direction:column;min-height:0;overflow:hidden;
-  max-width:680px;margin:0 auto;width:100%;padding:var(--s4) var(--s4) 0;box-sizing:border-box;}
-.tracker-fixed{flex:0 0 auto;}
-.tracker-splity{flex:1 1 0;min-height:0;display:flex;flex-direction:column;overflow:hidden;}
-.tracker-splity > #summaryArea{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;}
-.tracker-splity > #summaryArea > .card{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;overflow:hidden;}
-/* min-height: nawet przy rozwiniętej karcie "Sesja" lista splitów ma zostać widoczna */
-.tracker-splity .tbl-wrap{flex:1 1 auto;min-height:110px;overflow-y:auto;}
+/* ===== tracker: cała zawartość przewija się jak w pozostałych widokach ===== */
+/* Do v1.0.2 karty Sesja/Podsumowanie/hero były przypięte, a przewijała się tylko lista
+   splitów w środku kafelka. Na telefonie po pierwszym splicie blokowało to dostęp do
+   części treści — teraz przewija się całość, a lista splitów ma własny limit wysokości
+   (5 wierszy, ustawiany realnym pomiarem w js/tracker.js). */
+.tracker-layout{flex:1 1 auto;overflow-y:auto;-webkit-overflow-scrolling:touch;min-height:0;
+  max-width:680px;margin:0 auto;width:100%;padding:var(--s4) var(--s4) var(--s4);box-sizing:border-box;}
+/* ta sama sztuczka co w .view-scroll — suwak nie może zwężać kart */
+@media (pointer:fine){
+  .tracker-layout{scrollbar-gutter:stable;}
+  .tracker-layout > *{margin-right:calc(-1 * var(--sb));}
+}
+.tracker-splity .tbl-wrap{overflow-y:auto;}
 .tracker-splity .sum-grid{margin-bottom:10px;}
 .tracker-splity .sum-cell{padding:6px 10px;}
 .tracker-splity .tabela-naglowek{margin-bottom:8px;}
 .tracker-splity thead th{position:sticky;top:0;background:var(--card);z-index:1;}
-.tracker-splity > #exportArea{flex:0 0 auto;max-height:45%;overflow-y:auto;}
-
-/* po zakończeniu treningu: zwykłe przewijanie całości (dochodzi karta eksportu) */
-.tracker-layout.luzny{overflow-y:auto;padding-bottom:var(--s4);}
-/* ta sama sztuczka co w .view-scroll — karty mają nie drgnąć przy przejściu w układ luźny */
-@media (pointer:fine){
-  .tracker-layout.luzny{scrollbar-gutter:stable;}
-  .tracker-layout.luzny > *{margin-right:calc(-1 * var(--sb));}
-}
-.tracker-layout.luzny .tracker-splity{flex:0 0 auto;overflow:visible;}
-.tracker-layout.luzny .tracker-splity > #summaryArea > .card{overflow:visible;}
-.tracker-layout.luzny .tracker-splity .tbl-wrap{overflow-y:visible;min-height:0;}
-.tracker-layout.luzny .tracker-splity > #exportArea{max-height:none;overflow:visible;}
 
 /* ===== card (§4.2) ===== */
 .card{background:var(--card);border-radius:var(--r-lg);padding:14px 16px;margin-bottom:var(--s3);}
@@ -293,6 +288,9 @@ select{font-family:var(--font-body);font-size:12px;padding:8px 10px;border:none;
 .sum-cell-label{font-size:10px;color:var(--text-muted);margin-bottom:3px;}
 .sum-cell-val{font-family:var(--font-numeric);font-size:15px;font-weight:700;color:var(--text);}
 .sum-cell-swim .sum-cell-val{color:oklch(0.72 0.16 250);}
+/* kafelek, ktory zostaje sam w ostatnim wierszu bloku (Plan, trening z kilkoma czesciami,
+   format v2) - pelna szerokosc zamiast pustego miejsca obok, patrz js/plan-widok.js */
+.sum-cell-pelny{grid-column:1 / -1;}
 
 /* ===== split table (dark tokens) — tryb podglądu i edycji, ta sama tabela ===== */
 .tabela-naglowek{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;}
@@ -339,6 +337,10 @@ table td span{cursor:pointer;}
 
 /* ===== banners (milestone/end prompts) ===== */
 .banner{background:var(--card);border-left:4px solid var(--accent-info);border-radius:0 var(--r-md) var(--r-md) 0;padding:12px 14px;margin-bottom:10px;}
+/* Wariant jednolinijkowy (tryb gościa) — pełna karta zjadała ~80 px wysokości,
+   której na telefonie brakuje w Trackerze. */
+.banner-slim{padding:5px var(--s4);margin-bottom:0;border-radius:0;
+  font-size:11px;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .banner-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--accent-info);}
 .banner-desc{font-size:12px;color:var(--text-muted);margin-top:2px;margin-bottom:8px;}
 .banner .inputs{display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
@@ -439,6 +441,12 @@ button:disabled{opacity:0.4;cursor:not-allowed;}
 .plan-zasada{padding:8px 0 8px 22px;border-bottom:1px solid var(--divider);font-size:13px;line-height:1.5;color:var(--text-muted);}
 .plan-zasada .lbl{color:var(--text);text-transform:none;letter-spacing:0;font-size:13px;}
 .plan-zasada:last-of-type{border-bottom:none;}
+/* karta "Materiały" (plan.sekcje, format v2) dzieli tresc na akapity/listy w tym samym
+   kontenerze co Zasady - reset globalny zdejmuje domyslne marginesy p/ul, wiec bez tego
+   wieloakapitowy tekst sklejalby sie w jedna sciane */
+.plan-zasada p + p{margin-top:8px;}
+.plan-zasada ul{margin-top:4px;padding-left:18px;}
+.plan-zasada li{margin-bottom:2px;}
 
 /* ===== stopka (o wersji, w Ustawieniach) ===== */
 .stopka-wersja{font-size:11px;color:var(--text-muted);text-align:center;margin-top:var(--s4);}

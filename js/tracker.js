@@ -78,16 +78,10 @@ window.Tracker = (function () {
     });
   }
 
-  // Przypinanie kart ma sens tylko przy szybkim dopisywaniu splitów. Przed
-  // pierwszym splitem, przy otwartym dialogu (milestone/koniec) i po zakończeniu
-  // treningu na ekranie jest więcej treści niż miejsca — wtedy zwykłe przewijanie.
-  function czyLuznyUklad() {
-    return zakonczony || !sesja.splity.length || milestoneOtwarty !== null || endPromptOtwarty;
-  }
-
+  // Od v1.0.3 cała zawartość Trackera przewija się jak zwykły widok (patrz
+  // .tracker-layout w style.css) — odswiezUklad() zajmuje się już tylko chowaniem
+  // dolnego panelu przy otwartym dialogu.
   function odswiezUklad(kontener) {
-    const layout = kontener.querySelector('.tracker-layout');
-    if (layout) layout.classList.toggle('luzny', czyLuznyUklad());
     // Przy otwartym dialogu (milestone / koniec) wpisuje się czas w banerze —
     // dolny pasek ze splitami tylko zabierałby wtedy miejsce i mylił.
     const panel = kontener.querySelector('.tracker-panel');
@@ -97,10 +91,10 @@ window.Tracker = (function () {
   function render() {
     const kontener = kontenerGlobalny;
     if (!sesjaRozpoczeta) { renderStart(kontener); return; }
-    // Układ: karty Sesja/banery i "w wodzie" stoją w miejscu, przewija się
-    // wyłącznie lista splitów w środku (#summaryArea → .tbl-wrap).
+    // Od v1.0.3 cała zawartość się przewija — lista splitów dostaje własny limit
+    // wysokości (dopasujWysokoscSplitow(), 5 wierszy) zamiast przypiętego układu.
     kontener.innerHTML =
-      '<div class="tracker-layout' + (czyLuznyUklad() ? ' luzny' : '') + '">' +
+      '<div class="tracker-layout">' +
         '<div class="tracker-fixed">' +
           sesjaCardHtml() +
           '<div id="milestoneArea"></div>' +
@@ -358,6 +352,30 @@ window.Tracker = (function () {
     }
   }
 
+  const WIDOCZNYCH_SPLITOW = 5;
+
+  // Kafelek splitów rośnie razem z listą, ale nie w nieskończoność — po piątym wierszu
+  // zaczyna przewijać się w środku (najnowszy split jest u góry, więc widać 5 ostatnich).
+  // Wysokość liczona realnym pomiarem, nie stałą: wiersz ma inne metryki na dotyku
+  // (pola 16 px) niż przy myszy.
+  function dopasujWysokoscSplitow(kontener) {
+    const wrap = kontener.querySelector('.tracker-splity .tbl-wrap');
+    if (!wrap) return;
+    const tabela = wrap.querySelector('table');
+    const wiersze = tabela ? tabela.querySelectorAll('tbody tr') : [];
+    // tryb edycji dokłada wiersze „+" między splitami i tak czy siak przewija się cała
+    // strona — limit tylko myliłby przy poprawianiu czasów
+    if (!tabela || tabela.classList.contains('tbl-edycja') || !wiersze.length) {
+      wrap.style.maxHeight = '';
+      return;
+    }
+    const thead = tabela.querySelector('thead');
+    const hGlowa = thead ? thead.getBoundingClientRect().height : 0;
+    const hWiersza = wiersze[0].getBoundingClientRect().height;
+    if (!hWiersza) { wrap.style.maxHeight = ''; return; }
+    wrap.style.maxHeight = Math.ceil(hGlowa + WIDOCZNYCH_SPLITOW * hWiersza) + 'px';
+  }
+
   // ===== render statyczny / dynamiczny =====
 
   function wireStatyczne(kontener) {
@@ -500,26 +518,31 @@ window.Tracker = (function () {
       ostatni.przerwa = sec;
     } else {
       sesja.splity.push({ sec: sec, przerwa: null });
-      // pierwszy split = koniec ustawiania parametrów; zwijamy kartę Sesja,
-      // żeby zwolnić miejsce na listę splitów
-      if (sesja.splity.length === 1 && sesjaRozwinieta) {
-        sesjaRozwinieta = false;
-        const body = kontener.querySelector('#sesjaBody');
-        const chevron = kontener.querySelector('#sesjaChevron');
-        if (body) body.style.display = 'none';
-        if (chevron) chevron.classList.remove('open');
-      }
       const nowyDystans = swimDist();
       if (Model.MILESTONES.indexOf(nowyDystans) !== -1 && !sesja.zbiorcze[String(nowyDystans)]) {
         pokazMilestone(kontener, nowyDystans);
       }
     }
+    // Każdy udany wpis (split albo przerwa) zwija kartę „Sesja" — parametry sesji
+    // są potrzebne tylko przed treningiem, a rozwinięta karta zjada miejsce listy
+    // splitów. Do v1.0.3 zwijał ją wyłącznie pierwszy split, więc po ręcznym
+    // rozwinięciu zostawała otwarta do końca treningu.
+    zwinKarteSesji(kontener);
     setErr(kontener, '');
     inp.value = '';
     przerwaAktywna = false;
     kontener.querySelector('#przerwaBtn').classList.remove('active');
     kontener.querySelector('#preview').textContent = '';
     odswiezDynamiczne(kontener);
+  }
+
+  function zwinKarteSesji(kontener) {
+    if (!sesjaRozwinieta) return;
+    sesjaRozwinieta = false;
+    const body = kontener.querySelector('#sesjaBody');
+    const chevron = kontener.querySelector('#sesjaChevron');
+    if (body) body.style.display = 'none';
+    if (chevron) chevron.classList.remove('open');
   }
 
   // .ms-form układa to w trzy linijki: czas zbiorczy, czas z przerwą, przyciski
@@ -791,6 +814,7 @@ window.Tracker = (function () {
         pustyTekst: 'Dodaj czas pierwszego splitu — pojawi się tutaj.',
         onZmiana: function (nowaSesja) { sesja = nowaSesja; odswiezDynamiczne(kontener); }
       });
+      dopasujWysokoscSplitow(kontener);
     }
 
     updateExportValue(kontener);
