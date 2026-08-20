@@ -126,14 +126,15 @@ window.PlanWidok = (function () {
   // Etykieta lewego kafelka to zawsze "Seria" - pole "opis" z pliku planu bywa cale zdanie
   // ("pierwsze 200 m świadomie za wolno; po odcinku 30 s przerwy") i rozjezdzalo naglowek.
   function wierszCzesciHtml(czesc, def, basen) {
-    const tempo = Plan.tempoNaBasen(czesc.tempo, def, basen);
-    const zakresTitle = czesc.tempoZakres ? 'zakres ' + Plan.tempoNaBasen(czesc.tempoZakres, def, basen) : null;
+    // tempoZakres to jedyne pole z tempem, gdy trening jest zapisany jako przedzial
+    // (np. plan pisany pod dwa rozne baseny) - bez fallbacku kafelek pokazywal pusty "-",
+    // bo tempoZakres byl uzywany tylko jako niewidoczny na dotyku atrybut title.
+    const tempo = Plan.tempoNaBasen(czesc.tempo, def, basen) || Plan.tempoNaBasen(czesc.tempoZakres, def, basen);
     const tempoHtml = sumItem('Tempo', tempo || '—') +
       (czesc.typ === 'seria' ? sumItem('Przerwa', (czesc.przerwa || 0) + ' s') : '');
     return '<div class="sum-grid plan-para">' +
       '<div class="sum-cell sum-cell-para sum-cell-swim">' + sumItem('Seria', opisCzesci(czesc)) + '</div>' +
-      '<div class="sum-cell sum-cell-para"' +
-        (zakresTitle ? ' title="' + zakresTitle + '"' : '') + '>' + tempoHtml + '</div>' +
+      '<div class="sum-cell sum-cell-para">' + tempoHtml + '</div>' +
     '</div>';
   }
 
@@ -162,7 +163,7 @@ window.PlanWidok = (function () {
 
   function tytulTreningu(trening, def, basen) {
     return Plan.czesciLiczone(trening).map(function (c) {
-      const tempo = Plan.tempoNaBasen(c.tempo, def, basen) || '?';
+      const tempo = Plan.tempoNaBasen(c.tempo, def, basen) || Plan.tempoNaBasen(c.tempoZakres, def, basen) || '?';
       return (c.typ === 'ciagly' ? 'ciągły' : 'seria') + ' ' + tempo +
         (c.typ === 'seria' ? ', przerwa ' + (c.przerwa || 0) + ' s' : '');
     }).join('; ');
