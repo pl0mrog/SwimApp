@@ -99,6 +99,13 @@ window.PlanWidok = (function () {
     return czesc.powtorzenia + ' × ' + czesc.dystans + ' m';
   }
 
+  // Jak opisCzesci, ale bez mnoznika "1 ×" - do linijki informacyjnej, gdzie
+  // rozgrzewka/schlodzenie to zwykle pojedynczy odcinek, ale technika bywa seria
+  // (np. 4 x 50 m); pomijanie mnoznika zanizalo widoczny opis wzgledem Sumy.
+  function opisCzescInfo(czesc) {
+    return (czesc.powtorzenia > 1 ? czesc.powtorzenia + ' × ' + czesc.dystans : czesc.dystans) + ' m';
+  }
+
   // Jedna para etykieta+wartosc w kafelku, owinieta w sum-item - dokladnie ta sama
   // konstrukcja co kafelekSum() w js/sesja-tabela.js (Tracker). sum-item ma flex:1 1 0,
   // wiec pary w kafelku dziela jego szerokosc po rowno; bez niego wszystko dociagalo
@@ -111,9 +118,10 @@ window.PlanWidok = (function () {
   // Para kafelkow obok siebie na kazda czesc liczona, wzorowana na parze "Dystans/Suma" +
   // "Pływanie/Przerwy" z Trackera: lewy kobaltowy (sum-cell-swim, wartosc niebieska),
   // prawy szary (goly sum-cell, wartosc biala). Oba sa sum-cell-para, nawet gdy mieszcza
-  // jedna wartosc - tylko wtedy sum-item rozklada je tak samo jak w Trackerze. "ciagly"
-  // nie ma przerwy (jeden odcinek, nie ma na co czekac), wiec prawy kafelek ma wtedy sam
-  // kafelek Tempo. Wiele czesci = wiele par pod soba, bez naglowkow miedzy nimi.
+  // jedna wartosc - tylko wtedy sum-item rozklada je tak samo jak w Trackerze. Przerwa ma
+  // sens tylko dla "seria" - "ciagly" to jeden odcinek bez przerw, a "technika" w planie nie
+  // ma tego pola (odpoczynek miedzy powtorzeniami techniki nie jest tu opisany). Prawy kafelek
+  // ma wtedy sam kafelek Tempo. Wiele czesci = wiele par pod soba, bez naglowkow miedzy nimi.
   //
   // Etykieta lewego kafelka to zawsze "Seria" - pole "opis" z pliku planu bywa cale zdanie
   // ("pierwsze 200 m świadomie za wolno; po odcinku 30 s przerwy") i rozjezdzalo naglowek.
@@ -121,7 +129,7 @@ window.PlanWidok = (function () {
     const tempo = Plan.tempoNaBasen(czesc.tempo, def, basen);
     const zakresTitle = czesc.tempoZakres ? 'zakres ' + Plan.tempoNaBasen(czesc.tempoZakres, def, basen) : null;
     const tempoHtml = sumItem('Tempo', tempo || '—') +
-      (czesc.typ !== 'ciagly' ? sumItem('Przerwa', (czesc.przerwa || 0) + ' s') : '');
+      (czesc.typ === 'seria' ? sumItem('Przerwa', (czesc.przerwa || 0) + ' s') : '');
     return '<div class="sum-grid plan-para">' +
       '<div class="sum-cell sum-cell-para sum-cell-swim">' + sumItem('Seria', opisCzesci(czesc)) + '</div>' +
       '<div class="sum-cell sum-cell-para"' +
@@ -206,7 +214,11 @@ window.PlanWidok = (function () {
     const t = nastepny.trening;
     const tydzien = nastepny.tydzien;
     const gosc = Dane.tryb() === 'gosc';
-    const liczone = Plan.czesciLiczone(t);
+    // Kafelki dostaje wszystko poza rozgrzewka/schlodzeniem (tez technika - w tym
+    // planie to zawsze seria powtorzen, np. 4 x 50 m, nie pojedynczy odcinek).
+    const liczone = Plan.czesci(t).filter(function (c) {
+      return c.typ === 'ciagly' || c.typ === 'seria' || c.typ === 'technika';
+    });
     const maKorekte = !!(def.korektaTempa && def.basenDocelowy);
 
     let blokiHtml = '';
@@ -216,12 +228,11 @@ window.PlanWidok = (function () {
     blokiHtml += sumaWierszHtml(Plan.suma(t) + ' m');
 
     // Linijka informacyjna pod ostatnim blokiem (§2.4): uwaga najpierw, potem
-    // rozgrzewka/technika/schlodzenie - bez kolorowego tla, zwykly tekst jak dzis.
+    // rozgrzewka/schlodzenie - bez kolorowego tla, zwykly tekst jak dzis.
     const infoBits = t.uwaga ? [t.uwaga] : [];
     Plan.czesci(t).forEach(function (c) {
-      if (c.typ === 'rozgrzewka') infoBits.push('rozgrzewka ' + c.dystans + ' m');
-      else if (c.typ === 'technika') infoBits.push('technika ' + c.dystans + ' m');
-      else if (c.typ === 'schlodzenie') infoBits.push('schłodzenie ' + c.dystans + ' m');
+      if (c.typ === 'rozgrzewka') infoBits.push('rozgrzewka ' + opisCzescInfo(c));
+      else if (c.typ === 'schlodzenie') infoBits.push('schłodzenie ' + opisCzescInfo(c));
     });
 
     karta.innerHTML =
