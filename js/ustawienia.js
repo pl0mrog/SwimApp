@@ -16,6 +16,15 @@ window.Ustawienia = (function () {
   // Odswiez() z tla (status-zmieniony przy push/pull) nie moze przerysowac karty,
   // dopoki uzytkownik cos wpisuje w pola ID/token — skasowaloby niezapisany tekst.
   let syncPoleFocus = false;
+  // domyślnie zwinięta — jak karta „Synchronizacja"
+  let habitifyRozwinieta = false;
+  // ten sam powod co syncPoleFocus, niezaleznie od niej (Habitify nie jest czescia Gista)
+  let habitifyPoleFocus = false;
+  // Stan przycisku "Sprawdz i zapisz" i tresc bledu trzymane tutaj, nie tylko w DOM —
+  // przerysowanie wywolane z zewnatrz (np. Dane w trakcie oczekiwania na odpowiedz
+  // Habitify) odtwarza je z tych zmiennych zamiast je gubic.
+  let habitifySprawdzanie = false;
+  let habitifyBlad = '';
 
   function montuj(kontener) {
     kontenerGlobalny = kontener;
@@ -42,6 +51,7 @@ window.Ustawienia = (function () {
     scroll.appendChild(renderKopiaIEksport());
     scroll.appendChild(renderPlanTreningowy());
     scroll.appendChild(renderSynchronizacja());
+    scroll.appendChild(renderHabitify());
     if (Dane.tryb() !== 'gosc') scroll.appendChild(renderEdycja());
     const wersja = document.createElement('p');
     wersja.className = 'stopka-wersja';
@@ -336,6 +346,95 @@ window.Ustawienia = (function () {
 
     tresc.querySelector('#syncUsun').addEventListener('click', function () {
       Dane.usunKonfiguracje();
+      render();
+    });
+
+    return karta;
+  }
+
+  function renderHabitify() {
+    const karta = document.createElement('div');
+    karta.className = 'card';
+    const s = Habitify.stan();
+
+    const naglowek = document.createElement('div');
+    naglowek.className = 'karta-head';
+    const tytul = document.createElement('div');
+    tytul.className = 'section-label';
+    tytul.textContent = 'Habitify';
+    const strzalka = document.createElement('span');
+    strzalka.className = 'chevron' + (habitifyRozwinieta ? ' open' : '');
+    strzalka.textContent = '▾';
+    naglowek.appendChild(tytul);
+    naglowek.appendChild(strzalka);
+    naglowek.addEventListener('click', function () {
+      habitifyRozwinieta = !habitifyRozwinieta;
+      render();
+    });
+    karta.appendChild(naglowek);
+
+    if (!habitifyRozwinieta) return karta;
+
+    const ostatnia = s.ostatnia;
+    let ostatniaHtml = '';
+    if (ostatnia && ostatnia.faza === 'wynik') {
+      ostatniaHtml = '<p class="hint">Ostatnia wysyłka (' + fmtChwila(ostatnia.czas) + '): ' + ostatnia.komunikat + '</p>';
+    } else if (ostatnia && ostatnia.faza === 'w-toku' && !s.wToku) {
+      // Zapisany stan "w toku", ale ten moduł właśnie wystartował od nowa (przeładowanie
+      // strony) — wysyłka nigdy nie doszła do wyniku, więc nie wiadomo, czy się udała.
+      ostatniaHtml = '<p class="hint">Ostatnia wysyłka (' + fmtChwila(ostatnia.czas) + ') przerwana — nie wiadomo, czy doszła. Sprawdź w apce Habitify.</p>';
+    }
+
+    // Gdy klucz juz dziala, "Sprawdz i zapisz" (i pole na klucz) nie maja czego robic —
+    // zeby wkleic inny, trzeba najpierw "Usun z urzadzenia". Pokazujemy je z powrotem
+    // dopiero po usunieciu.
+    const pokazFormularz = !s.skonfigurowane;
+
+    const tresc = document.createElement('div');
+    tresc.style.marginTop = '14px';
+    tresc.innerHTML =
+      '<p class="hint" style="margin-top:0;">' +
+        (s.skonfigurowane ? '✓ Połączono z nawykiem „' + s.nazwaNawyku + '”.' : '⚠ Nieskonfigurowane — wklej klucz API z apki Habitify (Settings → API).') +
+      '</p>' +
+      ostatniaHtml +
+      (pokazFormularz ? (
+        '<div class="input-row">' +
+          '<input type="password" id="habitifyKlucz" placeholder="' + (s.kluczOgon ? '… ' + s.kluczOgon : 'Klucz API Habitify') + '" ' +
+            'autocapitalize="off" autocorrect="off" spellcheck="false" autocomplete="off">' +
+        '</div>'
+      ) : '') +
+      '<div class="btn-row" style="margin-top:8px;">' +
+        (pokazFormularz ? '<button class="primary" id="habitifySprawdz"' + (habitifySprawdzanie ? ' disabled' : '') + '>' +
+          (habitifySprawdzanie ? 'Sprawdzam…' : 'Sprawdź i zapisz') + '</button>' : '') +
+        '<button class="small" id="habitifyUsun">Usuń z urządzenia</button>' +
+      '</div>' +
+      '<div class="err-msg" id="habitifyMsg">' + habitifyBlad + '</div>';
+    karta.appendChild(tresc);
+
+    if (pokazFormularz) {
+      const poleKlucz = tresc.querySelector('#habitifyKlucz');
+      poleKlucz.addEventListener('focus', function () { habitifyPoleFocus = true; });
+      poleKlucz.addEventListener('blur', function () { habitifyPoleFocus = false; });
+
+      tresc.querySelector('#habitifySprawdz').addEventListener('click', function () {
+        const klucz = tresc.querySelector('#habitifyKlucz').value;
+        habitifySprawdzanie = true;
+        habitifyBlad = '';
+        render();
+        Habitify.ustawKlucz(klucz).then(function () {
+          habitifySprawdzanie = false;
+          render();
+        }).catch(function (e) {
+          habitifySprawdzanie = false;
+          habitifyBlad = e.message;
+          render();
+        });
+      });
+    }
+
+    tresc.querySelector('#habitifyUsun').addEventListener('click', function () {
+      Habitify.usunKlucz();
+      habitifyBlad = '';
       render();
     });
 
@@ -832,7 +931,7 @@ window.Ustawienia = (function () {
     odmontuj: odmontuj,
     // Otwarty formularz edycji sesji ma niezapisane pola w DOM — przerysowanie by je
     // skasowalo. Poza edycja karta jest bezstanowa, wiec bezpiecznie sie przerysowuje.
-    odswiez: function () { if (idSesjiEdycji === null && !syncPoleFocus) render(); }
+    odswiez: function () { if (idSesjiEdycji === null && !syncPoleFocus && !habitifyPoleFocus) render(); }
   });
 
   return {};

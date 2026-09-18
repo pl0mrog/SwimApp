@@ -12,6 +12,9 @@ window.Tracker = (function () {
   let sesjaRozwinieta = true;
   let heroZwiniety = false;
   let komunikatStartu = '';
+  // null | { data, metry, faza: 'pytanie' | 'wysylanie' | 'wynik', komunikat }
+  let habitifyProsba = null;
+  const HABITIFY_BEZPIECZNIK_MS = 16000;
   let endPromptOtwarty = false;
   let przerwaAktywna = false;
   let milestoneOtwarty = null;
@@ -52,30 +55,105 @@ window.Tracker = (function () {
   function odmontuj() {
     if (kontenerGlobalny) kontenerGlobalny.innerHTML = '';
     kontenerGlobalny = null;
+    // Wysyłka w toku żyje dalej w tle (to zwykły fetch, nie zależy od DOM) — gdyby
+    // ją tu wyzerować, wynik przepadłby bez śladu przy przejściu na inną zakładkę.
+    // Po powrocie na Tracker renderStart() pokaże albo dalej "wysyłam", albo wynik.
+    if (!habitifyProsba || habitifyProsba.faza !== 'wysylanie') habitifyProsba = null;
+  }
+
+  function fmtDataPl(iso) {
+    return iso.slice(8, 10) + '.' + iso.slice(5, 7) + '.' + iso.slice(0, 4);
+  }
+
+  function bannerHabitifyHtml() {
+    if (!habitifyProsba) return '';
+    if (habitifyProsba.faza === 'wynik') {
+      return '<div class="banner" style="margin-top:12px;">' +
+        '<div class="banner-title">Habitify</div>' +
+        '<div class="banner-desc" style="margin-bottom:0;">' + habitifyProsba.komunikat + '</div>' +
+      '</div>';
+    }
+    const wysylanie = habitifyProsba.faza === 'wysylanie';
+    return '<div class="banner" style="margin-top:12px;">' +
+      '<div class="banner-title">Wysłać do Habitify?</div>' +
+      '<div class="banner-desc">' + habitifyProsba.metry + ' m · nawyk „Pływanie”, ' + fmtDataPl(habitifyProsba.data) + '</div>' +
+      '<div class="banner-btn-row">' +
+        '<button class="small primary" id="habitifyWyslij"' + (wysylanie ? ' disabled' : '') + '>' + (wysylanie ? 'Wysyłam…' : 'Wyślij') + '</button>' +
+        (wysylanie ? '' : '<button class="small" id="habitifyPomin">Pomiń</button>') +
+      '</div>' +
+    '</div>';
   }
 
   function startCardHtml() {
+    // Dopoki czeka pytanie o Habitify (albo trwa wysylka), "Dodaj nowa sesje" znika —
+    // inaczej mozna by zaczac nowy trening i zgubic baner, nie zauwazajac wyboru.
+    // Wraca, gdy jest juz wynik (albo gdy nie ma zadnej prosby).
+    const ukryjStartBtn = habitifyProsba && habitifyProsba.faza !== 'wynik';
     return '<div class="card start-card">' +
       '<div class="section-label">Nowa sesja</div>' +
       (komunikatStartu ? '<p class="start-komunikat">' + komunikatStartu + '</p>' : '') +
       '<p class="hint">Wpisujesz czasy kolejnych 100 m — dystans, sumy i tempo apka policzy sama.</p>' +
-      '<div class="btn-row"><button class="primary" id="startBtn">Dodaj nową sesję</button></div>' +
+      (ukryjStartBtn ? '' : '<div class="btn-row"><button class="primary" id="startBtn">Dodaj nową sesję</button></div>') +
+      bannerHabitifyHtml() +
     '</div>';
   }
 
   function renderStart(kontener) {
     kontener.innerHTML = '<div class="view-scroll">' + startCardHtml() + '</div>';
     komunikatStartu = '';   // pokazujemy raz, po powrocie z zapisanego treningu
-    kontener.querySelector('#startBtn').addEventListener('click', function () {
-      sesja = sesjaPusta();
-      zakonczony = false;
-      milestoneOtwarty = null;
-      przerwaAktywna = false;
-      sesjaRozwinieta = true;
-      heroZwiniety = false;
-      sesjaRozpoczeta = true;
-      render();
-    });
+    // Wynik NIE znika sam przy przerysowaniu (np. przy odswiez() wywolanym przez
+    // Dane po synchronizacji z Gistem) — inaczej ginalby, zanim uzytkownik go przeczyta.
+    // Znika dopiero przy "Dodaj nowa sesje" albo wyjsciu z Trackera (odmontuj()).
+    const btnWyslij = kontener.querySelector('#habitifyWyslij');
+    if (btnWyslij) {
+      btnWyslij.addEventListener('click', function () {
+        const prosba = habitifyProsba;
+        prosba.faza = 'wysylanie';
+        render();
+        function pokazWynik(komunikat) {
+          // Prosba mogla zostac wyczyszczona w miedzyczasie (np. "Dodaj nowa sesje")
+          // — wtedy wynik nie ma juz gdzie wladowac (zostaje w kafelku w Ustawieniach).
+          if (habitifyProsba !== prosba) return;
+          prosba.faza = 'wynik';
+          prosba.komunikat = komunikat;
+          if (kontenerGlobalny && !sesjaRozpoczeta) render();
+        }
+        // Bezpiecznik niezalezny od habitify.js: baner nie moze zostac na "Wysylam…"
+        // dluzej niz limit 15 s + chwila zapasu, cokolwiek by sie nie stalo po drodze.
+        // Jesli prawdziwy wynik przyjdzie pozniej, nadpisze ten komunikat.
+        const bezpiecznik = setTimeout(function () {
+          if (prosba.faza === 'wysylanie') pokazWynik('⚠ Brak odpowiedzi — nie wiadomo, czy wpis doszedł. Sprawdź w apce Habitify.');
+        }, HABITIFY_BEZPIECZNIK_MS);
+        Habitify.wyslijDystans(prosba.data, prosba.metry).then(function (wynik) {
+          clearTimeout(bezpiecznik);
+          pokazWynik(wynik.komunikat);
+        }).catch(function () {
+          clearTimeout(bezpiecznik);
+          pokazWynik('⚠ Nieoczekiwany błąd — sprawdź w apce Habitify, czy wpis doszedł.');
+        });
+      });
+    }
+    const btnPomin = kontener.querySelector('#habitifyPomin');
+    if (btnPomin) {
+      btnPomin.addEventListener('click', function () {
+        habitifyProsba = null;
+        render();
+      });
+    }
+    const btnStart = kontener.querySelector('#startBtn');
+    if (btnStart) {
+      btnStart.addEventListener('click', function () {
+        habitifyProsba = null;
+        sesja = sesjaPusta();
+        zakonczony = false;
+        milestoneOtwarty = null;
+        przerwaAktywna = false;
+        sesjaRozwinieta = true;
+        heroZwiniety = false;
+        sesjaRozpoczeta = true;
+        render();
+      });
+    }
   }
 
   // Od v1.0.3 cała zawartość Trackera przewija się jak zwykły widok (patrz
@@ -489,6 +567,9 @@ window.Tracker = (function () {
 
     komunikatStartu = 'Zapisano trening ręczny (' + dystansM + 'm' +
       (czasSec != null ? ', ' + Model.fmtCzas(czasSec) : '') + ').';
+    if (Habitify.stan().skonfigurowane && dystansM > 0) {
+      habitifyProsba = { data: sesja.data, metry: dystansM, faza: 'pytanie' };
+    }
     resetTrening();
   }
 
@@ -694,6 +775,9 @@ window.Tracker = (function () {
     const dopisekOffline = (Dane.tryb() === 'wlasciciel' && navigator.onLine === false)
       ? ' — wyślę do Gista, gdy wróci internet' : '';
     komunikatStartu = 'Zapisano sesję (' + swimDist() + 'm, ' + Model.fmtCzas(sesja.koniec.sec) + ')' + dopisekOffline + '.';
+    if (Habitify.stan().skonfigurowane && swimDist() > 0) {
+      habitifyProsba = { data: sesja.data, metry: swimDist(), faza: 'pytanie' };
+    }
     resetTrening();
   }
 
