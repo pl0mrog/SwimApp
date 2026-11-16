@@ -1,5 +1,6 @@
 window.Model = (function () {
   const PROG_PRZERWY = 105;
+  const MAX_KOMENTARZ = 300;
   const MILESTONES = [500, 1000, 1500, 2000];
 
   function klonuj(obj) {
@@ -136,6 +137,14 @@ window.Model = (function () {
     return out;
   }
 
+  // Komentarz do sesji: przycięty tekst albo null (pusty / nie-string). Limit 300 znaków pilnuje
+  // samo pole (maxlength) — tu NIE ucinamy, żeby dłuższy tekst z importu przechodził bez zmian.
+  function normalizujKomentarz(tekst) {
+    if (typeof tekst !== 'string') return null;
+    const przyciety = tekst.trim();
+    return przyciety ? przyciety : null;
+  }
+
   // ===== walidacja =====
 
   function czyPoprawnaSesja(sesja) {
@@ -164,6 +173,7 @@ window.Model = (function () {
 
   return {
     PROG_PRZERWY: PROG_PRZERWY,
+    MAX_KOMENTARZ: MAX_KOMENTARZ,
     MILESTONES: MILESTONES,
     parsujCzas: parsujCzas,
     fmtCzas: fmtCzas,
@@ -182,6 +192,7 @@ window.Model = (function () {
     oznaczZbiorczeDoWeryfikacji: oznaczZbiorczeDoWeryfikacji,
     czyPoprawnaSesja: czyPoprawnaSesja,
     czyPelnaSesja: czyPelnaSesja,
+    normalizujKomentarz: normalizujKomentarz,
     buildExportExcel: buildExportExcel
   };
 })();

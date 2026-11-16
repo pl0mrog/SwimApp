@@ -11,6 +11,8 @@ window.Tracker = (function () {
   // automatycznie po pierwszym splicie — inaczej zjadałaby wysokość listy splitów.
   let sesjaRozwinieta = true;
   let heroZwiniety = false;
+  // "Komentarz" card after finishing: expanded by default, the user can collapse it
+  let komentarzRozwiniety = true;
   let komunikatStartu = '';
   // null | { data, metry, faza: 'pytanie' | 'wysylanie' | 'wynik', komunikat }
   let habitifyProsba = null;
@@ -150,6 +152,7 @@ window.Tracker = (function () {
         przerwaAktywna = false;
         sesjaRozwinieta = true;
         heroZwiniety = false;
+        komentarzRozwiniety = true;
         sesjaRozpoczeta = true;
         render();
       });
@@ -180,6 +183,7 @@ window.Tracker = (function () {
         '</div>' +
         '<div class="tracker-splity">' +
           '<div id="summaryArea"></div>' +
+          '<div id="komentarzArea"></div>' +
           '<div id="exportArea"></div>' +
         '</div>' +
         '<div class="tracker-fixed">' +
@@ -190,7 +194,7 @@ window.Tracker = (function () {
 
     wireStatyczne(kontener);
     odswiezDynamiczne(kontener);
-    if (zakonczony) showExport(kontener);
+    if (zakonczony) { pokazKomentarz(kontener); showExport(kontener); }
   }
 
   // ===== karta „Sesja" (zwijana, §5.1) =====
@@ -227,6 +231,8 @@ window.Tracker = (function () {
         '<div class="input-row" id="manualRow" style="display:none;margin-top:6px;">' +
           '<input type="text" id="manualDystans" placeholder="dystans np. 2000" maxlength="5"> m' +
           '<input type="text" id="manualCzas" placeholder="czas np. 3237 (opcjonalnie)" maxlength="4">' +
+          '<textarea id="manualKomentarz" class="komentarz-pole komentarz-pole-reczny" rows="2" maxlength="' + Model.MAX_KOMENTARZ + '"' +
+            ' placeholder="komentarz (opcjonalnie)"></textarea>' +
           '<button class="small primary" id="manualZapisz">Zapisz</button>' +
         '</div>' +
         '<div class="keypad-dock" id="manualKeypadDock"></div>' +
@@ -295,6 +301,17 @@ window.Tracker = (function () {
     const manualDock = kontener.querySelector('#manualKeypadDock');
     Keypad.mountOnFocus(manualDystans, manualDock);
     Keypad.mountOnFocus(manualCzas, manualDock);
+    // the error points at the field that caused it — editing that field clears it
+    [manualDystans, manualCzas].forEach(function (el) {
+      el.addEventListener('input', function () {
+        if (!el.classList.contains('err')) return;
+        el.classList.remove('err');
+        kontener.querySelector('#manualMsg').textContent = '';
+      });
+    });
+    const manualKomentarz = kontener.querySelector('#manualKomentarz');
+    // pole tekstowe otwiera klawiaturę systemową — własna siatka cyfr ma wtedy zniknąć
+    manualKomentarz.addEventListener('focus', function () { manualDock.innerHTML = ''; });
 
     const manualCb = kontener.querySelector('#manualCb');
     const manualRow = kontener.querySelector('#manualRow');
@@ -308,6 +325,7 @@ window.Tracker = (function () {
         // zostawałaby otwarta pod schowanym formularzem
         manualDystans.value = '';
         manualCzas.value = '';
+        manualKomentarz.value = '';
         manualDystans.classList.remove('err');
         manualCzas.classList.remove('err');
         manualDock.innerHTML = '';
@@ -435,21 +453,18 @@ window.Tracker = (function () {
   // Kafelek splitów rośnie razem z listą, ale nie w nieskończoność — po piątym wierszu
   // zaczyna przewijać się w środku (najnowszy split jest u góry, więc widać 5 ostatnich).
   // Wysokość liczona realnym pomiarem, nie stałą: wiersz ma inne metryki na dotyku
-  // (pola 16 px) niż przy myszy.
+  // (pola 16 px) niż przy myszy. Limit działa też w trybie edycji — tabela wygląda tam jak
+  // podgląd, a pasek akcji mieści się w przewijanym obszarze (dosuwa go SesjaTabela).
   function dopasujWysokoscSplitow(kontener) {
     const wrap = kontener.querySelector('.tracker-splity .tbl-wrap');
     if (!wrap) return;
     const tabela = wrap.querySelector('table');
-    const wiersze = tabela ? tabela.querySelectorAll('tbody tr') : [];
-    // tryb edycji dokłada wiersze „+" między splitami i tak czy siak przewija się cała
-    // strona — limit tylko myliłby przy poprawianiu czasów
-    if (!tabela || tabela.classList.contains('tbl-edycja') || !wiersze.length) {
-      wrap.style.maxHeight = '';
-      return;
-    }
+    // pasek akcji nie jest wierszem splitu — nie może być wzorcem wysokości
+    const wiersz = tabela ? tabela.querySelector('tbody tr:not(.wiersz-akcji)') : null;
+    if (!wiersz) { wrap.style.maxHeight = ''; return; }
     const thead = tabela.querySelector('thead');
     const hGlowa = thead ? thead.getBoundingClientRect().height : 0;
-    const hWiersza = wiersze[0].getBoundingClientRect().height;
+    const hWiersza = wiersz.getBoundingClientRect().height;
     if (!hWiersza) { wrap.style.maxHeight = ''; return; }
     wrap.style.maxHeight = Math.ceil(hGlowa + WIDOCZNYCH_SPLITOW * hWiersza) + 'px';
   }
@@ -545,6 +560,7 @@ window.Tracker = (function () {
         return;
       }
     }
+    const komentarz = Model.normalizujKomentarz(kontener.querySelector('#manualKomentarz').value);
     kontener.querySelector('#manualMsg').textContent = '';
     const iso = new Date().toISOString();
     const nowaSesja = {
@@ -560,6 +576,7 @@ window.Tracker = (function () {
       utworzono: iso,
       zmodyfikowano: iso
     };
+    if (komentarz) nowaSesja.komentarz = komentarz;
     const dok = Dane.wczytaj();
     dok.sesje.push(nowaSesja);
     dok.ustawienia.ostatniBasen = sesja.basen;
@@ -626,35 +643,64 @@ window.Tracker = (function () {
     if (chevron) chevron.classList.remove('open');
   }
 
-  // .ms-form układa to w trzy linijki: czas zbiorczy, czas z przerwą, przyciski
+  // Trzy pola: czas zbiorczy na progu (wymagany), przerwa po tym basenie i czas zbiorczy
+  // po przerwie (opcjonalne). Układ robi .ms-form w style.css.
   function pokazMilestone(kontener, dist) {
     milestoneOtwarty = dist;
     const area = kontener.querySelector('#milestoneArea');
     area.innerHTML =
       '<div class="banner">' +
         '<div class="banner-title">Osiągnięto ' + dist + 'm</div>' +
-        '<div class="banner-desc">Wpisz czasy zbiorcze</div>' +
+        '<div class="banner-desc">Przerwa i czas po przerwie — opcjonalnie</div>' +
         '<div class="ms-form">' +
-          '<label>Czas na ' + dist + 'm:</label>' +
-          '<input type="text" id="msSwim" placeholder="1148" maxlength="4">' +
-          '<label>+ przerwa (opcjonalnie):</label>' +
-          '<input type="text" id="msRest" placeholder="105" maxlength="4">' +
+          '<div class="ms-pole"><label for="msSwim">Czas na ' + dist + 'm</label>' +
+            '<input type="text" id="msSwim" placeholder="1148" maxlength="4"></div>' +
+          '<div class="ms-pole"><label for="msPrzerwa">Przerwa</label>' +
+            '<input type="text" id="msPrzerwa" placeholder="45" maxlength="4"></div>' +
+          '<div class="ms-pole"><label for="msRest">Czas po przerwie</label>' +
+            '<input type="text" id="msRest" placeholder="1233" maxlength="4"></div>' +
           '<div class="ms-btns">' +
             '<button class="small primary" id="msZapisz">Zapisz</button>' +
             '<button class="small" id="msPomin">Pomiń</button>' +
           '</div>' +
         '</div>' +
+        '<div class="err-msg" id="msOstrz"></div>' +
         '<div class="keypad-dock" id="msKeypadDock"></div>' +
         '<div class="err-msg" id="msBlad"></div>' +
       '</div>';
     odswiezUklad(kontener);
     const swimInp = area.querySelector('#msSwim');
+    const przerwaInp = area.querySelector('#msPrzerwa');
     const restInp = area.querySelector('#msRest');
+    const pola = [swimInp, przerwaInp, restInp];
     const blad = area.querySelector('#msBlad');
+    const ostrz = area.querySelector('#msOstrz');
     const msDock = area.querySelector('#msKeypadDock');
-    Keypad.mountOnFocus(swimInp, msDock);
-    Keypad.mountOnFocus(restInp, msDock);
+    pola.forEach(function (el) { Keypad.mountOnFocus(el, msDock); });
     swimInp.focus();
+
+    // Przerwa: puste albo samo „0" = brak (null); zły format (sekundy ≥ 60) = NaN.
+    function odczytajPrzerwe() {
+      const surowy = przerwaInp.value.replace(/[^0-9]/g, '');
+      if (!surowy) return null;
+      const sec = Model.parsujCzas(surowy);
+      if (sec === null) return NaN;
+      return sec === 0 ? null : sec;
+    }
+
+    // Zegarek liczy z ułamkami, tu wpisuje się pełne sekundy — różnica do 1 s to zwykłe
+    // zaokrąglenie. Większa tylko ostrzega; zapisu nie blokuje nigdy i niczego nie poprawia.
+    function odswiezOstrzezenie() {
+      const swimSec = Model.parsujCzas(swimInp.value);
+      const przerwaSec = odczytajPrzerwe();
+      const restSec = restInp.value ? Model.parsujCzas(restInp.value) : null;
+      const komplet = swimSec != null && swimSec > 0 && restSec != null &&
+        przerwaSec != null && !Number.isNaN(przerwaSec);
+      const roznica = komplet ? Math.abs(restSec - (swimSec + przerwaSec)) : 0;
+      ostrz.textContent = roznica > 1
+        ? 'Sprawdź liczby: czas po przerwie różni się od „czas + przerwa" o ' + Model.fmtCzas(roznica) + '.'
+        : '';
+    }
 
     function zamknij() {
       milestoneOtwarty = null;
@@ -664,23 +710,36 @@ window.Tracker = (function () {
 
     function zapisz() {
       const swimSec = Model.parsujCzas(swimInp.value);
+      const przerwaSec = odczytajPrzerwe();
       const restVal = restInp.value;
       const restSec = restVal ? Model.parsujCzas(restVal) : null;
+      pola.forEach(function (el) { el.classList.remove('err'); });
       if (swimSec === null || swimSec === 0) {
         swimInp.classList.add('err');
         blad.textContent = swimSec === 0 ? 'Czas nie może być zerowy.' : 'Nieprawidłowy czas — sekundy nie mogą być ≥ 60.';
         return;
       }
-      swimInp.classList.remove('err');
-      if (restVal && restSec === null) { restInp.classList.add('err'); blad.textContent = 'Nieprawidłowy czas — sekundy nie mogą być ≥ 60.'; return; }
+      if (Number.isNaN(przerwaSec)) {
+        przerwaInp.classList.add('err');
+        blad.textContent = 'Nieprawidłowy czas — sekundy nie mogą być ≥ 60.';
+        return;
+      }
+      if (restVal && restSec === null) {
+        restInp.classList.add('err');
+        blad.textContent = 'Nieprawidłowy czas — sekundy nie mogą być ≥ 60.';
+        return;
+      }
       if (restVal && restSec <= swimSec) {
         restInp.classList.add('err');
         blad.textContent = 'Czas z przerwą musi być większy niż czas zbiorczy pływania.';
         return;
       }
-      restInp.classList.remove('err');
       blad.textContent = '';
       sesja.zbiorcze[String(dist)] = { swimSec: swimSec, restSec: restSec, doWeryfikacji: false };
+      // Przerwa z banera zapisuje się dokładnie tak, jak wpisana w dolnym polu — na splicie,
+      // który domknął próg. Bez Model.PROG_PRZERWY: tu to ZAWSZE przerwa, niezależnie od długości.
+      const split = sesja.splity[dist / 100 - 1];
+      if (przerwaSec !== null && split) split.przerwa = przerwaSec;
       zamknij();
       kontener.querySelector('#mainInput').focus();
     }
@@ -690,20 +749,44 @@ window.Tracker = (function () {
       zamknij();
       kontener.querySelector('#mainInput').focus();
     });
-    [swimInp, restInp].forEach(function (el) {
+    pola.forEach(function (el) {
+      el.addEventListener('input', function () {
+        // the error points at the field that caused it — editing that field clears it
+        if (el.classList.contains('err')) { el.classList.remove('err'); blad.textContent = ''; }
+        odswiezOstrzezenie();
+      });
       el.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); zapisz(); } });
     });
   }
 
+  // Trening kończący się dokładnie na progu, z czasem zbiorczym wpisanym na tym progu:
+  // to ten sam odczyt z zegarka, który inaczej trzeba by wpisać drugi raz. swimSec, nie restSec —
+  // trening nigdy nie kończy się przerwą, a koniec.sec jest liczony bez niej.
+  function propozycjaCzasuKonca() {
+    const sd = swimDist();
+    if (Model.MILESTONES.indexOf(sd) === -1) return null;
+    const zb = (sesja.zbiorcze || {})[String(sd)];
+    if (!zb || zb.swimSec == null || zb.doWeryfikacji === true) return null;
+    return zb.swimSec;
+  }
+
   function pokazEndPrompt(kontener) {
     if (zakonczony) return;
+    // Trening nie powinien kończyć się przerwą — to zwykle pomyłka przy wpisywaniu. Tylko pytanie:
+    // „Anuluj" wraca do wpisywania bez żadnej zmiany w sesji.
+    const ostatni = sesja.splity[sesja.splity.length - 1];
+    if (ostatni && ostatni.przerwa != null &&
+        !confirm('Ostatni wpis to przerwa. Zakończyć trening mimo to?')) return;
     endPromptOtwarty = true;
     const sd = swimDist();
+    const propozycja = propozycjaCzasuKonca();
     const area = kontener.querySelector('#endArea');
     area.innerHTML =
       '<div class="banner">' +
         '<div class="banner-title">Koniec treningu (' + sd + 'm)</div>' +
-        '<div class="banner-desc">Wpisz łączny czas</div>' +
+        '<div class="banner-desc">' + (propozycja != null
+          ? 'Czas z progu ' + sd + 'm — popraw, jeśli trzeba'
+          : 'Wpisz łączny czas') + '</div>' +
         '<div class="inputs">' +
           '<input type="text" id="endTime" class="end-input" placeholder="3237" maxlength="4">' +
         '</div>' +
@@ -715,6 +798,7 @@ window.Tracker = (function () {
         '<div class="keypad-dock" id="endKeypadDock"></div>' +
       '</div>';
     const inp = area.querySelector('#endTime');
+    if (propozycja != null) inp.value = Model.secNaCyfry(propozycja);
     Keypad.mountOnFocus(inp, area.querySelector('#endKeypadDock'));
     odswiezUklad(kontener);
     inp.focus();
@@ -728,6 +812,7 @@ window.Tracker = (function () {
       endPromptOtwarty = false;
       area.innerHTML = '';
       odswiezDynamiczne(kontener);
+      pokazKomentarz(kontener);
       showExport(kontener);
     }
 
@@ -746,6 +831,8 @@ window.Tracker = (function () {
     sesja.koniec = { sec: null };
     const exportArea = kontener.querySelector('#exportArea');
     if (exportArea) exportArea.innerHTML = '';
+    const komentarzArea = kontener.querySelector('#komentarzArea');
+    if (komentarzArea) komentarzArea.innerHTML = '';
     odswiezDynamiczne(kontener);
     kontener.querySelector('#mainInput').focus();
   }
@@ -755,6 +842,9 @@ window.Tracker = (function () {
     if (!sesja.splity.length) { pokazZapisMsg(kontener, 'Brak splitów — nie ma czego zapisać.'); return; }
     if (sesja.koniec.sec == null) { pokazZapisMsg(kontener, 'Brak czasu końcowego — zakończ trening przed zapisem.'); return; }
     if (!Model.czyPoprawnaSesja(sesja)) { pokazZapisMsg(kontener, 'Dane sesji są niepoprawne — sprawdź czasy.'); return; }
+
+    const komentarz = Model.normalizujKomentarz(sesja.komentarz);
+    if (komentarz) sesja.komentarz = komentarz; else delete sesja.komentarz;
 
     const iso = new Date().toISOString();
     sesja.id = iso.slice(0, 19).replace(/:/g, '-') + '-' + Math.random().toString(36).slice(2, 6);
@@ -791,6 +881,45 @@ window.Tracker = (function () {
     if (ta) ta.value = Model.buildExportExcel(sesja);
   }
 
+  // Karta komentarza pojawia się razem z kartą eksportu — po wpisaniu czasu końcowego, przed
+  // „Zapisz…". Surowy tekst żyje w sesja.komentarz (przetrwa „Cofnij zakończenie");
+  // przycinanie i usuwanie pustego dopiero w zapiszSesje().
+  function pokazKomentarz(kontener) {
+    const area = kontener.querySelector('#komentarzArea');
+    if (!area) return;
+    const rozwiniety = komentarzRozwiniety || !!sesja.komentarz;
+    area.innerHTML =
+      '<div class="card">' +
+        '<div class="karta-head" id="komentarzHead">' +
+          '<div class="section-label">Komentarz</div>' +
+          '<span class="chevron' + (rozwiniety ? ' open' : '') + '" id="komentarzChevron">▾</span>' +
+        '</div>' +
+        '<div id="komentarzBody" style="margin-top:10px;display:' + (rozwiniety ? '' : 'none') + ';">' +
+          '<textarea id="komentarzPole" class="komentarz-pole" rows="3" maxlength="' + Model.MAX_KOMENTARZ + '"' +
+            ' placeholder="np. baseny 1–2 z bojką, mało ludzi (opcjonalnie)"></textarea>' +
+          '<div class="komentarz-licznik" id="komentarzLicznik"></div>' +
+        '</div>' +
+      '</div>';
+    const pole = area.querySelector('#komentarzPole');
+    const licznik = area.querySelector('#komentarzLicznik');
+    const body = area.querySelector('#komentarzBody');
+    const chevron = area.querySelector('#komentarzChevron');
+    // .value, nie wklejanie do HTML — tekst użytkownika nigdy nie przechodzi przez innerHTML
+    pole.value = sesja.komentarz || '';
+    function odswiezLicznik() { licznik.textContent = pole.value.length + '/' + Model.MAX_KOMENTARZ; }
+    odswiezLicznik();
+    pole.addEventListener('input', function () {
+      if (pole.value) sesja.komentarz = pole.value; else delete sesja.komentarz;
+      odswiezLicznik();
+    });
+    area.querySelector('#komentarzHead').addEventListener('click', function () {
+      komentarzRozwiniety = body.style.display === 'none';
+      body.style.display = komentarzRozwiniety ? '' : 'none';
+      chevron.classList.toggle('open', komentarzRozwiniety);
+      if (komentarzRozwiniety) pole.focus();
+    });
+  }
+
   function showExport(kontener) {
     if (!sesja.splity.length) return;
     const area = kontener.querySelector('#exportArea');
@@ -819,6 +948,7 @@ window.Tracker = (function () {
     milestoneOtwarty = null;
     przerwaAktywna = false;
     endPromptOtwarty = false;
+    komentarzRozwiniety = true;
     sesjaRozpoczeta = false;   // z powrotem na ekran startowy
     render();
   }
@@ -851,10 +981,12 @@ window.Tracker = (function () {
       if (manualDock) manualDock.innerHTML = '';
     }
 
-    const mainInput = kontener.querySelector('#mainInput');
-    if (mainInput) mainInput.disabled = zakonczony;
-    const przerwaBtn = kontener.querySelector('#przerwaBtn');
-    if (przerwaBtn) przerwaBtn.disabled = zakonczony;
+    // After finishing there is nothing left to type: the split field, "przerwa" and the
+    // touch keypad disappear; "Cofnij zakończenie" brings them back.
+    const panelRow = kontener.querySelector('.panel-row');
+    if (panelRow) panelRow.style.display = zakonczony ? 'none' : '';
+    const mainDock = kontener.querySelector('#mainKeypadDock');
+    if (mainDock) mainDock.style.display = zakonczony ? 'none' : '';
 
     const target = kontener.querySelector('#panelTarget');
     if (target) target.textContent = panelTargetTekst();
@@ -896,9 +1028,11 @@ window.Tracker = (function () {
       SesjaTabela.render(tabelaKontener, sesja, {
         edytowalna: true,
         pustyTekst: 'Dodaj czas pierwszego splitu — pojawi się tutaj.',
-        onZmiana: function (nowaSesja) { sesja = nowaSesja; odswiezDynamiczne(kontener); }
+        onZmiana: function (nowaSesja) { sesja = nowaSesja; odswiezDynamiczne(kontener); },
+        // Tabela przerysowuje się też sama (Edytuj/Gotowe, zaznaczenie wiersza) — limit wysokości
+        // trzeba nakładać po każdym przerysowaniu, nie tylko po wpisie z dolnego panelu.
+        poRysowaniu: function () { dopasujWysokoscSplitow(kontener); }
       });
-      dopasujWysokoscSplitow(kontener);
     }
 
     updateExportValue(kontener);

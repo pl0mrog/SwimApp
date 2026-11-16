@@ -167,6 +167,21 @@ window.Historia = (function () {
       szczegoly.appendChild(tabelaDiv);
       SesjaTabela.render(tabelaDiv, s, { edytowalna: false });
 
+      // Komentarz to tekst użytkownika (także z importu) — wyłącznie textContent, nigdy innerHTML.
+      if (typeof s.komentarz === 'string' && s.komentarz.trim()) {
+        const kom = document.createElement('div');
+        kom.className = 'card';
+        const etykietaKom = document.createElement('div');
+        etykietaKom.className = 'section-label';
+        etykietaKom.textContent = 'Komentarz';
+        const tresc = document.createElement('div');
+        tresc.className = 'komentarz-tekst';
+        tresc.textContent = s.komentarz;
+        kom.appendChild(etykietaKom);
+        kom.appendChild(tresc);
+        szczegoly.appendChild(kom);
+      }
+
       const btnRow = document.createElement('div');
       btnRow.className = 'btn-row';
 

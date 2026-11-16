@@ -125,7 +125,7 @@ body.splash-on{background:var(--navy);}
 
 /* ===== shell: header ===== */
 .app-header{background:var(--navy);flex-shrink:0;border-bottom:1px solid var(--divider-strong);}
-.app-header-inner{max-width:680px;margin:0 auto;padding:max(var(--s3), env(safe-area-inset-top)) var(--s4) 0;}
+.app-header-inner{max-width:680px;margin:0 auto;padding:max(var(--s3), calc(env(safe-area-inset-top) + 8px)) var(--s4) 0;}
 .app-header-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
 .logo{display:flex;align-items:center;gap:8px;}
 .wordmark{font-family:var(--font-display);font-weight:700;font-size:16px;letter-spacing:-0.01em;}
@@ -253,7 +253,7 @@ select{font-family:var(--font-body);font-size:12px;padding:8px 10px;border:none;
 /* iOS przybliża widok, gdy pole ma font < 16px — na dotyku podnosimy wszystkie pola
    do 16px i odchudzamy padding w tabeli, żeby cztery cyfry nadal weszły w komórkę */
 @media (pointer:coarse){
-  input[type=text],input[type=date],input[type=password],select,.chip{font-size:16px;}
+  input[type=text],input[type=date],input[type=password],select,.chip,.komentarz-pole{font-size:16px;}
   td input[type=text]{font-size:16px;max-width:56px;padding:4px 1px;}
 }
 
@@ -317,23 +317,21 @@ tr.row-last td{color:var(--accent-info);}
 .td-ms-rest{color:var(--text-faint);}
 td input[type=text]{width:100%;max-width:44px;padding:4px 2px;font-size:12px;}
 td .small{padding:5px 7px;min-height:28px;min-width:0;}
-th:nth-child(1),td:nth-child(1){width:15%;}
+th:nth-child(1),td:nth-child(1){width:17.5%;}
 th:nth-child(2),td:nth-child(2){width:19%;}
-th:nth-child(3),td:nth-child(3){width:20%;}
+th:nth-child(3),td:nth-child(3){width:17.5%;}
 th:nth-child(4),td:nth-child(4){width:19%;}
 th:nth-child(5),td:nth-child(5){width:19%;}
-th:nth-child(6),td:nth-child(6){width:8%;padding-left:2px;padding-right:2px;}
 table td span{cursor:pointer;}
-
-/* tryb edycji: szósta kolumna niesie przycisk „×", więc musi dostać realną szerokość */
-.tbl-edycja th:nth-child(1),.tbl-edycja td:nth-child(1){width:14%;}
-.tbl-edycja th:nth-child(2),.tbl-edycja td:nth-child(2){width:17%;}
-.tbl-edycja th:nth-child(3),.tbl-edycja td:nth-child(3){width:17%;}
-.tbl-edycja th:nth-child(4),.tbl-edycja td:nth-child(4){width:18%;}
-.tbl-edycja th:nth-child(5),.tbl-edycja td:nth-child(5){width:20%;}
-.tbl-edycja th:nth-child(6),.tbl-edycja td:nth-child(6){width:14%;}
-/* nth-child(6), nie last-child — wiersz „+" ma jedną komórkę na colspan i ma zostać wąski */
-.tbl-edycja td:nth-child(6) button{width:100%;padding:5px 0;}
+/* tryb edycji: te same kolumny co podgląd; tap w „Dystans" zaznacza wiersz i otwiera
+   pod nim pasek akcji (wstaw nad / wstaw pod / usuń) */
+.tbl-edycja td.td-dystans{cursor:pointer;}
+tr.wybrany{background:oklch(0.26 0.06 255 / 0.45);}
+tr.wiersz-akcji td{padding:4px 2px;overflow:visible;}
+.pasek-akcji{display:flex;gap:6px;}
+/* 11 px i wąski padding: w Ustawieniach tabela ma 258 px, przycisk dostaje 80 px,
+   a „↓ wstaw pod" przy 12 px potrzebuje 84 px */
+.pasek-akcji .small{flex:1 1 0;min-width:0;min-height:30px;padding:5px 2px;font-size:11px;white-space:nowrap;}
 
 /* ===== banners (milestone/end prompts) ===== */
 .banner{background:var(--card);border-left:4px solid var(--accent-info);border-radius:0 var(--r-md) var(--r-md) 0;padding:12px 14px;margin-bottom:10px;}
@@ -345,10 +343,13 @@ table td span{cursor:pointer;}
 .banner-desc{font-size:12px;color:var(--text-muted);margin-top:2px;margin-bottom:8px;}
 .banner .inputs{display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
 .banner .inputs label{font-size:12px;color:var(--text-muted);}
-/* milestone: etykieta + pole w jednej linijce (dwie linijki), przyciski w trzeciej —
-   flex-wrap rozjeżdżał to na telefonie na losowe kombinacje */
+/* milestone: „Czas na N m" + „Przerwa" w pierwszym wierszu, „Czas po przerwie" w drugim.
+   Kolumny max-content trzymają etykietę przy polu; space-between ustawia pola pierwszej
+   kolumny w jednej pionowej linii mimo różnej długości etykiet. */
 .ms-form{display:grid;grid-template-columns:max-content max-content;gap:8px 10px;align-items:center;}
-.ms-form label{font-size:12px;color:var(--text-muted);}
+.ms-pole{display:flex;align-items:center;justify-content:space-between;gap:8px;}
+.ms-pole label{font-size:12px;color:var(--text-muted);}
+.ms-pole input[type=text]{width:68px;}
 .ms-form .ms-btns{grid-column:1 / -1;display:flex;gap:8px;margin-top:2px;}
 /* koniec treningu: 4 cyfry, pole nie musi być tak szerokie jak domyślne */
 .banner .end-input{width:72px;}
@@ -462,6 +463,18 @@ button:disabled{opacity:0.4;cursor:not-allowed;}
 .plan-zasada p + p{margin-top:8px;}
 .plan-zasada ul{margin-top:4px;padding-left:18px;}
 .plan-zasada li{margin-bottom:2px;}
+
+/* ===== komentarz do sesji ===== */
+.komentarz-pole{display:block;width:100%;font-family:var(--font-body);font-size:14px;line-height:1.4;
+  padding:8px 10px;border:1.5px solid transparent;border-radius:var(--r-sm);background:var(--chip-input);
+  color:var(--text);resize:vertical;outline:none;transition:border-color .15s;}
+.komentarz-pole:focus{border-color:var(--accent-confirm);}
+/* w formularzu treningu ręcznego: własna linia, przycisk „Zapisz" schodzi pod pole */
+.komentarz-pole-reczny{flex:0 0 100%;}
+.komentarz-licznik{font-family:var(--font-numeric);font-size:11px;color:var(--text-muted);text-align:right;margin-top:2px;}
+/* podgląd w Historii: łamanie linii z tekstu, długie słowa nie rozpychają karty */
+.komentarz-tekst{font-size:13px;line-height:1.5;color:var(--text-dim);white-space:pre-wrap;overflow-wrap:anywhere;}
+.ed-komentarz{margin-bottom:10px;}
 
 /* ===== stopka (o wersji, w Ustawieniach) ===== */
 .stopka-wersja{font-size:11px;color:var(--text-muted);text-align:center;margin-top:var(--s4);}

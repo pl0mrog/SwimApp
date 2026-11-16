@@ -4,7 +4,7 @@ window.SesjaTabela = (function () {
   function pobierzStan(kontener) {
     let stan = stanPerKontener.get(kontener);
     if (!stan) {
-      stan = { trybEdycji: false };
+      stan = { trybEdycji: false, wybrany: null, liczbaSplitow: 0 };
       stanPerKontener.set(kontener, stan);
     }
     return stan;
@@ -18,6 +18,9 @@ window.SesjaTabela = (function () {
     stan.onZmiana = opts.onZmiana || function () {};
     // Tracker pokazuje kafelki z zerami i zachętę zamiast "Brak splitów"
     stan.pustyTekst = opts.pustyTekst || null;
+    // Wywoływane po KAŻDYM przerysowaniu tabeli (także tych wewnętrznych: Edytuj/Gotowe,
+    // zaznaczenie wiersza) — Tracker nakłada tu limit wysokości listy.
+    stan.poRysowaniu = opts.poRysowaniu || function () {};
     if (!stan.edytowalna) stan.trybEdycji = false;
     rysuj(kontener, stan);
   }
@@ -25,6 +28,15 @@ window.SesjaTabela = (function () {
   function rysuj(kontener, stan) {
     const sesja = stan.sesja;
     const splity = sesja.splity || [];
+
+    // Zaznaczony wiersz (pasek akcji) to stan widoku, nie danych: znika po „Gotowe"
+    // i po każdej zmianie liczby splitów.
+    if (!stan.trybEdycji || stan.liczbaSplitow !== splity.length) stan.wybrany = null;
+    stan.liczbaSplitow = splity.length;
+    // Przebudowa tworzy nowy .tbl-wrap — pozycję przewijania listy trzeba przenieść ręcznie.
+    const staryWrap = kontener.querySelector('.tbl-wrap');
+    const przewiniecie = staryWrap ? staryWrap.scrollTop : 0;
+
     kontener.innerHTML = '';
 
     const karta = document.createElement('div');
@@ -85,31 +97,22 @@ window.SesjaTabela = (function () {
     const wrap = document.createElement('div');
     wrap.className = 'tbl-wrap';
     const tabela = document.createElement('table');
-
-    if (stan.trybEdycji) {
-      // szósta kolumna (usuwanie) potrzebuje własnych szerokości — patrz .tbl-edycja w CSS
-      tabela.className = 'tbl-edycja';
-      tabela.innerHTML =
-        '<thead><tr><th>Dystans</th><th>Czas 100m</th><th>Przerwa</th><th>Czas zbiorczy</th><th>Zbiorczy +&nbsp;przerwa</th><th></th></tr></thead>';
-      const tbody = document.createElement('tbody');
-
-      tbody.appendChild(wierszWstaw(0, kontener, stan));
-      splity.forEach(function (sp, i) {
+    // Ta sama głowa i te same 5 kolumn w obu trybach — po „Edytuj" nic się nie przesuwa.
+    tabela.innerHTML =
+      '<thead><tr><th>Dystans</th><th>Czas 100m</th><th>Przerwa</th><th>Czas zbiorczy</th><th>Zbiorczy +&nbsp;przerwa</th></tr></thead>';
+    // klasa to tylko znacznik trybu (kursor na komórce „Dystans") — szerokości kolumn są wspólne
+    if (stan.trybEdycji) tabela.className = 'tbl-edycja';
+    const tbody = document.createElement('tbody');
+    // najnowszy split u góry — w podglądzie i w edycji tak samo
+    for (let i = splity.length - 1; i >= 0; i--) {
+      if (stan.trybEdycji) {
         tbody.appendChild(wierszSplitu(i, kontener, stan));
-        tbody.appendChild(wierszWstaw(i + 1, kontener, stan));
-      });
-
-      tabela.appendChild(tbody);
-    } else {
-      tabela.innerHTML =
-        '<thead><tr><th>Dystans</th><th>Czas 100m</th><th>Przerwa</th><th>Czas zbiorczy</th><th>Zbiorczy +&nbsp;przerwa</th></tr></thead>';
-      const tbody = document.createElement('tbody');
-      for (let i = splity.length - 1; i >= 0; i--) {
+        if (stan.wybrany === i) tbody.appendChild(wierszAkcji(i, kontener, stan));
+      } else {
         tbody.appendChild(wierszSplituOdczyt(sesja, i));
       }
-      tabela.appendChild(tbody);
     }
-
+    tabela.appendChild(tbody);
     wrap.appendChild(tabela);
     karta.appendChild(wrap);
 
@@ -126,6 +129,20 @@ window.SesjaTabela = (function () {
     karta.appendChild(blad);
 
     kontener.appendChild(karta);
+
+    stan.poRysowaniu();
+    if (stan.trybEdycji) {
+      // W edycji lista zostaje tam, gdzie była (wstawiasz/usuwasz w miejscu, na które patrzysz);
+      // w podglądzie wraca na górę — nowy split z dolnego pola ma być od razu widoczny.
+      wrap.scrollTop = przewiniecie;
+      // Pasek akcji nie może wypaść pod dolną krawędź listy z limitem wysokości (Tracker).
+      // Przewijamy TYLKO .tbl-wrap, nie całą stronę.
+      const pasek = wrap.querySelector('tr.wiersz-akcji');
+      if (pasek) {
+        const nadmiar = pasek.getBoundingClientRect().bottom - wrap.getBoundingClientRect().bottom;
+        if (nadmiar > 0) wrap.scrollTop += nadmiar;
+      }
+    }
   }
 
   // Jeden kafelek mieści dwie wartości obok siebie — dwa kafelki zamiast czterech
@@ -206,24 +223,42 @@ window.SesjaTabela = (function () {
     return nowa;
   }
 
-  function wierszWstaw(i, kontener, stan) {
+  // Pasek akcji pod zaznaczonym wierszem. Lista jest od najnowszego, więc „nad" = nowszy split
+  // (indeks i + 1), „pod" = starszy (indeks i). „Wstaw nad" na najwyższym wierszu dopisuje split
+  // na końcu treningu — w Ustawieniach to jedyny sposób dopisania splitu.
+  function wierszAkcji(i, kontener, stan) {
     const tr = document.createElement('tr');
+    tr.className = 'wiersz-akcji';
     const td = document.createElement('td');
-    td.colSpan = 6;
-    td.style.textAlign = 'center';
-    td.style.padding = '2px';
-    const btn = document.createElement('button');
-    btn.className = 'small';
-    btn.textContent = '+';
-    btn.title = 'Wstaw split';
-    btn.addEventListener('click', function () {
-      const nowa = Model.wstawSplit(stan.sesja, i);
-      zmien(kontener, stan, nowa);
-      const wiersz = kontener.querySelector('tr[data-idx="' + i + '"]');
+    td.colSpan = 5;
+    const pasek = document.createElement('div');
+    pasek.className = 'pasek-akcji';
+
+    function przycisk(tekst, klasa, akcja) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = klasa;
+      btn.textContent = tekst;
+      btn.addEventListener('click', akcja);
+      pasek.appendChild(btn);
+    }
+
+    function wstaw(indeks) {
+      zmien(kontener, stan, Model.wstawSplit(stan.sesja, indeks));
+      // fokus od razu w czasie nowego splitu — jak przy dawnym „+"
+      const wiersz = kontener.querySelector('tr[data-idx="' + indeks + '"]');
       const komorka = wiersz && wiersz.querySelector('td.td-sec');
       if (komorka) komorka.click();
+    }
+
+    przycisk('↑ wstaw nad', 'small', function () { wstaw(i + 1); });
+    przycisk('↓ wstaw pod', 'small', function () { wstaw(i); });
+    przycisk('× usuń', 'small danger', function () {
+      if (!confirm('Usunąć split ' + Model.dystansSplitu(i) + 'm?')) return;
+      zmien(kontener, stan, Model.usunSplit(stan.sesja, i));
     });
-    td.appendChild(btn);
+
+    td.appendChild(pasek);
     tr.appendChild(td);
     return tr;
   }
@@ -239,8 +274,16 @@ window.SesjaTabela = (function () {
     tr.dataset.idx = String(i);
     if (maKoniec) tr.className = 'row-last';
     else if (zb) tr.className = 'row-ms';
+    if (stan.wybrany === i) tr.classList.add('wybrany');
 
-    tr.appendChild(komorkaTekst(dystans + 'm'));
+    // Tap w „Dystans" zaznacza wiersz i otwiera pod nim pasek akcji; ponowny tap zamyka.
+    // Naraz otwarty jest jeden pasek (jedno pole stan.wybrany).
+    const tdDystans = komorkaTekst(dystans + 'm', 'td-dystans');
+    tdDystans.addEventListener('click', function () {
+      stan.wybrany = stan.wybrany === i ? null : i;
+      rysuj(kontener, stan);
+    });
+    tr.appendChild(tdDystans);
 
     const tdSec = utworzKomorkeCzasu(kontener, stan, {
       tekst: Model.fmtCzas(s.sp.sec),
@@ -284,19 +327,6 @@ window.SesjaTabela = (function () {
     } else {
       tr.appendChild(komorkaTekst(''));
       tr.appendChild(komorkaTekst(''));
-    }
-
-    if (stan.trybEdycji) {
-      const tdUsun = document.createElement('td');
-      const btnUsun = document.createElement('button');
-      btnUsun.className = 'small danger';
-      btnUsun.textContent = '×';
-      btnUsun.addEventListener('click', function () {
-        if (!confirm('Usunąć split ' + dystans + 'm?')) return;
-        zmien(kontener, stan, Model.usunSplit(sesja, i));
-      });
-      tdUsun.appendChild(btnUsun);
-      tr.appendChild(tdUsun);
     }
 
     return tr;

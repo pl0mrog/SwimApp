@@ -670,6 +670,11 @@ window.Ustawienia = (function () {
             '<label class="cb-label">Czas <input type="text" id="edCzas" style="width:70px;" placeholder="mm:ss"></label>' +
           '</div>'
         : '') +
+      '<div class="ed-komentarz">' +
+        '<textarea id="edKomentarz" class="komentarz-pole" rows="3" maxlength="' + Model.MAX_KOMENTARZ + '"' +
+          ' placeholder="komentarz (opcjonalnie)"></textarea>' +
+        '<div class="komentarz-licznik" id="edKomentarzLicznik"></div>' +
+      '</div>' +
       '<div id="edSplity" style="margin-top:10px;"></div>';
 
     const dataInp = card.querySelector('#edData');
@@ -712,6 +717,14 @@ window.Ustawienia = (function () {
       czasInp.addEventListener('input', sprawdzZmiane);
     }
 
+    const komInp = card.querySelector('#edKomentarz');
+    const komLicznik = card.querySelector('#edKomentarzLicznik');
+    // Dłuższy tekst z importu wchodzi w całości — maxlength ogranicza tylko dopisywanie.
+    komInp.value = typeof s.komentarz === 'string' ? s.komentarz : '';
+    function odswiezLicznikKom() { komLicznik.textContent = komInp.value.length + '/' + Model.MAX_KOMENTARZ; }
+    odswiezLicznikKom();
+    komInp.addEventListener('input', function () { odswiezLicznikKom(); sprawdzZmiane(); });
+
     function pobierzAktualne() {
       const basenBtn = basenGroup.querySelector('.toggle-btn.active');
       const tagBtn = tagGroup.querySelector('.toggle-btn.active');
@@ -720,7 +733,8 @@ window.Ustawienia = (function () {
         basen: basenBtn ? basenBtn.dataset.basen : '',
         tag: tagBtn && tagBtn.dataset.tag === '__inny__' ? tagInny.value : (tagBtn ? tagBtn.dataset.tag : ''),
         dystans: czyReczna ? dystansInp.value : null,
-        czas: czyReczna ? czasInp.value : null
+        czas: czyReczna ? czasInp.value : null,
+        komentarz: komInp.value
       };
     }
     const poczatkowyStan = JSON.stringify(pobierzAktualne());
@@ -729,6 +743,16 @@ window.Ustawienia = (function () {
     }
 
     const blad = card.querySelector('#edBlad');
+    // the error points at the field that caused it — editing that field clears it
+    if (czyReczna) {
+      [dystansInp, czasInp].forEach(function (el) {
+        el.addEventListener('input', function () {
+          if (!el.classList.contains('err')) return;
+          el.classList.remove('err');
+          blad.textContent = '';
+        });
+      });
+    }
 
     const splityDiv = card.querySelector('#edSplity');
     SesjaTabela.render(splityDiv, s, {
@@ -783,6 +807,8 @@ window.Ustawienia = (function () {
 
       const nowa = Object.assign({}, s, zmiana);
       nowa.zmodyfikowano = new Date().toISOString();
+      const komentarz = Model.normalizujKomentarz(komInp.value);
+      if (komentarz) nowa.komentarz = komentarz; else delete nowa.komentarz;
       const dok = Dane.wczytaj();
       const idx = dok.sesje.findIndex(function (x) { return x.id === s.id; });
       if (idx !== -1) { dok.sesje[idx] = nowa; Dane.zapisz(dok); }

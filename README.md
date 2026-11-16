@@ -6,7 +6,7 @@ jako statyczna strona.
 
 Projekt hobbystyczny, nie komercyjny. Powstaje przy okazji nauki [Claude Code](https://claude.com/claude-code).
 
-**Wersja:** 1.4.0
+**Wersja:** 2.0.0
 
 ## Co potrafi
 
@@ -17,6 +17,7 @@ Projekt hobbystyczny, nie komercyjny. Powstaje przy okazji nauki [Claude Code](h
 - **Plan** — plan treningowy (domyślnie 16-tygodniowy) z odhaczaniem wykonanych jednostek
   i kartą „następny trening"; sam plan da się podmienić przez import pliku, bez edycji kodu.
 - **Historia** — lista sesji grupowana rok / miesiąc, podgląd splitów, kopiowanie do Excela.
+- **Komentarz do treningu** — krótka notatka przy sesji, widoczna w Historii.
 - **Ustawienia** — kopia zapasowa i eksport/import JSON (scalanie po `id`, bez duplikatów),
   import/eksport planu treningowego, edycja i masowe usuwanie sesji, synchronizacja online.
 - **Synchronizacja przez GitHub Gist** — dane widoczne na kilku urządzeniach: zapis lokalny
