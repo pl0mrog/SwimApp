@@ -125,7 +125,7 @@ body.splash-on{background:var(--navy);}
 
 /* ===== shell: header ===== */
 .app-header{background:var(--navy);flex-shrink:0;border-bottom:1px solid var(--divider-strong);}
-.app-header-inner{max-width:680px;margin:0 auto;padding:max(var(--s3), calc(env(safe-area-inset-top) + 8px)) var(--s4) 0;}
+.app-header-inner{max-width:680px;margin:0 auto;padding:max(var(--s3), calc(var(--safe-top, env(safe-area-inset-top)) + 8px)) var(--s4) 0;}
 .app-header-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
 .logo{display:flex;align-items:center;gap:8px;}
 .wordmark{font-family:var(--font-display);font-weight:700;font-size:16px;letter-spacing:-0.01em;}
@@ -379,7 +379,7 @@ button:disabled{opacity:0.4;cursor:not-allowed;}
 /* ===== bottom action panel (Tracker only, §5.5) ===== */
 /* padding-bottom: kobalt ma dochodzić do samej krawędzi ekranu, pod pasek gestów iPhone'a */
 .tracker-panel{flex-shrink:0;background:var(--navy);border-top:1px solid var(--divider-strong);
-  padding-bottom:env(safe-area-inset-bottom);}
+  padding-bottom:var(--safe-bottom, env(safe-area-inset-bottom));}
 .tracker-panel.ukryty{display:none;}
 /* padding-bottom celowo mały — pod spodem jest już env(safe-area-inset-bottom) na
    .tracker-panel, a każdy odzyskany piksel to wyższa lista splitów */

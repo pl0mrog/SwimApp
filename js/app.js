@@ -206,16 +206,45 @@ window.App = (function () {
     if (h > 0) document.documentElement.style.setProperty('--app-h', h + 'px');
   }
 
+  // Strefy bezpieczne iOS (--safe-top / --safe-bottom w style.css). Samo env() w regule CSS
+  // potrafiło zostać nieaktualne (nagłówek z ~59 pt zbędnej przerwy aż do przebudowy widoku
+  // albo obrotu), więc mierzymy je świeżym, jednorazowym elementem i wpisujemy jako zmienne.
+  function zmierzStrefyBezpieczne() {
+    const sonda = document.createElement('div');
+    sonda.style.cssText = 'position:fixed;left:0;top:0;width:0;height:0;visibility:hidden;pointer-events:none;' +
+      'padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);';
+    document.body.appendChild(sonda);
+    const stl = getComputedStyle(sonda);
+    const gora = parseFloat(stl.paddingTop) || 0;
+    const dol = parseFloat(stl.paddingBottom) || 0;
+    document.body.removeChild(sonda);
+    const root = document.documentElement.style;
+    root.setProperty('--safe-top', gora + 'px');
+    root.setProperty('--safe-bottom', dol + 'px');
+  }
+
+  function odswiezOkno() {
+    ustawWysokoscOkna();
+    zmierzStrefyBezpieczne();
+  }
+
   function init() {
     // Statystyki nie mają jeszcze własnego pliku (dopiero faza 2) —
     // zakładka wyszarzona rejestrowana jest tu wprost.
     zarejestrujWidok({ id: 'statystyki', etykieta: 'Statystyki', aktywny: false });
 
     obsluzLinkGoscia();
-    ustawWysokoscOkna();
-    window.addEventListener('resize', ustawWysokoscOkna);
+    odswiezOkno();
+    window.addEventListener('resize', odswiezOkno);
     // orientationchange na iOS odpala się zanim okno ma finalne wymiary — stąd opóźnienie
-    window.addEventListener('orientationchange', function () { setTimeout(ustawWysokoscOkna, 250); });
+    window.addEventListener('orientationchange', function () { setTimeout(odswiezOkno, 250); });
+    // powrót do apki (przełączenie aplikacji, blokada ekranu) też potrafi zostawić stare wartości;
+    // iOS dopiero chwilę po starcie ustala strefy, więc dodatkowe pomiary po 300 ms i 1 s
+    window.addEventListener('pageshow', odswiezOkno);
+    window.addEventListener('focus', odswiezOkno);
+    document.addEventListener('visibilitychange', function () { if (!document.hidden) odswiezOkno(); });
+    setTimeout(odswiezOkno, 300);
+    setTimeout(odswiezOkno, 1000);
     zmierzSuwak();
     wstrzyknijWersje();
 
