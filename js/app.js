@@ -198,34 +198,95 @@ window.App = (function () {
     Dane.ustawKonfiguracje({ idGista: gist }).catch(function () { /* zly link — konfiguracja zostaje pusta */ });
   }
 
-  // Realna wysokość okna — patrz --app-h w style.css. Celowo window.innerHeight,
-  // nie visualViewport: ten drugi kurczy się przy natywnym pickerze daty (pole
-  // w karcie „Sesja"), co przestawiałoby układ w trakcie wybierania daty.
-  function ustawWysokoscOkna() {
-    const h = window.innerHeight;
-    if (h > 0) document.documentElement.style.setProperty('--app-h', h + 'px');
-  }
+  // Wysokość okna i strefy bezpieczne — zmienne --app-h, --safe-top, --safe-bottom w style.css.
+  //
+  // iOS w trybie ekranu początkowego (navigator.standalone) potrafi po obrocie albo starcie
+  // przekłamać o wysokość paska statusu (~59 pt) w jedną z dwóch stron:
+  //  - env(safe-area-inset-top) = 59, choć okno i tak zaczyna się pod paskiem → przerwa nad logo;
+  //  - window.innerHeight krótsze o 59 → pusty pas pod dolnym panelem.
+  // Obie wartości są ze sobą niespójne, więc w standalone w pionie liczymy je względem ekranu:
+  //  - wysokość = największe innerHeight widziane w pionie przy tej szerokości (w standalone nie
+  //    ma paska przeglądarki, więc prawdziwa wysokość okna się nie zmienia, a błąd zawsze ją zaniża);
+  //  - górna strefa = env(top) minus to, o ile okno już zaczyna się poniżej górnej krawędzi ekranu.
+  // Poza standalone (Safari, komputer) — jak dotąd: innerHeight i env() wprost.
+  // Celowo innerHeight, nie visualViewport: ten drugi kurczy się przy natywnym pickerze daty.
+  let maksWysokosc = 0;
+  let szerokoscMaks = 0;
+  let ostatniPomiar = null;
 
-  // Strefy bezpieczne iOS (--safe-top / --safe-bottom w style.css). Samo env() w regule CSS
-  // potrafiło zostać nieaktualne (nagłówek z ~59 pt zbędnej przerwy aż do przebudowy widoku
-  // albo obrotu), więc mierzymy je świeżym, jednorazowym elementem i wpisujemy jako zmienne.
-  function zmierzStrefyBezpieczne() {
+  function zmierzEnv() {
     const sonda = document.createElement('div');
     sonda.style.cssText = 'position:fixed;left:0;top:0;width:0;height:0;visibility:hidden;pointer-events:none;' +
       'padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);';
     document.body.appendChild(sonda);
     const stl = getComputedStyle(sonda);
-    const gora = parseFloat(stl.paddingTop) || 0;
-    const dol = parseFloat(stl.paddingBottom) || 0;
+    const wynik = { gora: parseFloat(stl.paddingTop) || 0, dol: parseFloat(stl.paddingBottom) || 0 };
     document.body.removeChild(sonda);
-    const root = document.documentElement.style;
-    root.setProperty('--safe-top', gora + 'px');
-    root.setProperty('--safe-bottom', dol + 'px');
+    return wynik;
   }
 
   function odswiezOkno() {
-    ustawWysokoscOkna();
-    zmierzStrefyBezpieczne();
+    const h = window.innerHeight;
+    const w = window.innerWidth;
+    if (!(h > 0)) return;
+    const env = zmierzEnv();
+    const standalone = window.navigator.standalone === true;
+    const pion = h > w;
+    let wysokosc = h;
+    let gora = env.gora;
+    if (standalone && pion) {
+      if (w !== szerokoscMaks) { szerokoscMaks = w; maksWysokosc = 0; }
+      maksWysokosc = Math.max(maksWysokosc, h);
+      wysokosc = maksWysokosc;
+      const ekran = Math.max(screen.width, screen.height);
+      const przesuniecie = Math.max(0, ekran - wysokosc);   // okno zaczyna się tyle poniżej krawędzi
+      gora = Math.max(0, env.gora - przesuniecie);
+    }
+    const root = document.documentElement.style;
+    root.setProperty('--app-h', wysokosc + 'px');
+    root.setProperty('--safe-top', gora + 'px');
+    root.setProperty('--safe-bottom', env.dol + 'px');
+    ostatniPomiar = { standalone: standalone, pion: pion, innerW: w, innerH: h, maksH: maksWysokosc,
+      ekran: screen.width + '×' + screen.height, envGora: env.gora, envDol: env.dol, gora: gora, appH: wysokosc,
+      vv: window.visualViewport ? Math.round(window.visualViewport.height) + ' / off ' + Math.round(window.visualViewport.offsetTop) : '—' };
+  }
+
+  // Ukryta diagnostyka: przytrzymanie numeru wersji w nagłówku (~0,8 s) pokazuje pomiary okna.
+  // Służy do zrzutu ekranu, gdyby układ na iPhonie znów się rozjechał. Dotknięcie zamyka.
+  function podepnijDiagnostyke() {
+    const badge = document.getElementById('wersja');
+    if (!badge) return;
+    let timer = null;
+    badge.addEventListener('touchstart', function () {
+      timer = setTimeout(pokazDiagnostyke, 800);
+    }, { passive: true });
+    ['touchend', 'touchmove', 'touchcancel'].forEach(function (typ) {
+      badge.addEventListener(typ, function () { clearTimeout(timer); }, { passive: true });
+    });
+  }
+
+  function pokazDiagnostyke() {
+    odswiezOkno();
+    const p = ostatniPomiar || {};
+    const body = document.body.getBoundingClientRect();
+    const naglowek = document.querySelector('.app-header').getBoundingClientRect();
+    const wiersze = [
+      'wersja ' + window.APP_VERSION,
+      'standalone ' + p.standalone + ', pion ' + p.pion,
+      'screen ' + p.ekran,
+      'inner ' + p.innerW + '×' + p.innerH + ' (max ' + p.maksH + ')',
+      'visualViewport ' + p.vv,
+      'clientHeight ' + document.documentElement.clientHeight,
+      'env top ' + p.envGora + ', bottom ' + p.envDol,
+      'użyte: top ' + p.gora + ', app-h ' + p.appH,
+      'body top ' + Math.round(body.top) + ', h ' + Math.round(body.height),
+      'header h ' + Math.round(naglowek.height)
+    ];
+    const el = document.createElement('div');
+    el.className = 'diag-okno';
+    el.textContent = wiersze.join('\n');
+    el.addEventListener('click', function () { el.remove(); });
+    document.body.appendChild(el);
   }
 
   function init() {
@@ -236,8 +297,11 @@ window.App = (function () {
     obsluzLinkGoscia();
     odswiezOkno();
     window.addEventListener('resize', odswiezOkno);
-    // orientationchange na iOS odpala się zanim okno ma finalne wymiary — stąd opóźnienie
-    window.addEventListener('orientationchange', function () { setTimeout(odswiezOkno, 250); });
+    // orientationchange na iOS odpala się zanim okno ma finalne wymiary, a animacja obrotu
+    // trwa ok. pół sekundy — stąd kilka pomiarów z opóźnieniem
+    window.addEventListener('orientationchange', function () {
+      [250, 600, 1200].forEach(function (ms) { setTimeout(odswiezOkno, ms); });
+    });
     // powrót do apki (przełączenie aplikacji, blokada ekranu) też potrafi zostawić stare wartości;
     // iOS dopiero chwilę po starcie ustala strefy, więc dodatkowe pomiary po 300 ms i 1 s
     window.addEventListener('pageshow', odswiezOkno);
@@ -247,6 +311,7 @@ window.App = (function () {
     setTimeout(odswiezOkno, 1000);
     zmierzSuwak();
     wstrzyknijWersje();
+    podepnijDiagnostyke();
 
     const gearBtn = document.getElementById('ustawieniaBtn');
     if (gearBtn) gearBtn.addEventListener('click', function () { przelacz('ustawienia'); });

@@ -62,6 +62,11 @@ button:disabled,input:disabled{
    ciemniejszy pas. Klasę zdejmuje js/app.js razem z wygaszeniem ekranu. */
 body.splash-on{background:var(--navy);}
 
+/* Ukryta diagnostyka okna (przytrzymanie numeru wersji, js/app.js) — tylko do zrzutu ekranu */
+.diag-okno{position:fixed;left:12px;right:12px;top:40%;z-index:200;padding:12px;white-space:pre;
+  font-family:var(--font-numeric);font-size:12px;line-height:1.5;color:var(--text);
+  background:var(--card);border:1px solid var(--divider-strong);border-radius:var(--r-md);}
+
 /* ===== ekran startowy (Design/SwimApp-assets §7b) ===== */
 .splash{position:fixed;inset:0;z-index:100;background:var(--navy);
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:30px;
@@ -131,7 +136,8 @@ body.splash-on{background:var(--navy);}
 .wordmark{font-family:var(--font-display);font-weight:700;font-size:16px;letter-spacing:-0.01em;}
 .w-swim{color:var(--accent-info);}
 .w-app{color:var(--text);}
-.ver-badge{font-family:var(--font-numeric);font-size:11px;color:var(--text-muted);}
+.ver-badge{font-family:var(--font-numeric);font-size:11px;color:var(--text-muted);
+  -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;}  /* przytrzymanie = diagnostyka */
 
 /* ===== shell: nav pills (§4.1) ===== */
 .nav-shell{display:flex;align-items:center;gap:8px;padding-bottom:10px;}
