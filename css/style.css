@@ -482,5 +482,28 @@ button:disabled{opacity:0.4;cursor:not-allowed;}
 .komentarz-tekst{font-size:13px;line-height:1.5;color:var(--text-dim);white-space:pre-wrap;overflow-wrap:anywhere;}
 .ed-komentarz{margin-bottom:10px;}
 
+/* ===== statystyki ===== */
+.st-rekordy{margin-bottom:0;}
+.st-rekord-dopisek{font-family:var(--font-numeric);font-size:10px;color:var(--text-muted);margin-top:2px;}
+.st-lata{display:flex;flex-wrap:wrap;align-items:center;gap:0 16px;margin-bottom:4px;}
+.st-rok{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-dim);padding:6px 0;}
+.st-kolor{display:inline-block;width:14px;height:3px;border-radius:2px;flex-shrink:0;}
+.st-kolor-cel{height:0;border-top:2px dashed var(--text-faint);border-radius:0;}
+.st-cel-legenda{color:var(--text-muted);}
+.st-przelacznik{margin-bottom:8px;}
+.st-svg{display:block;}
+.st-svg text{font-family:var(--font-numeric);font-size:9px;fill:var(--text-muted);}
+.st-siatka{stroke:var(--divider);stroke-width:1;}
+.st-cel{stroke:var(--text-faint);stroke-width:1.5;stroke-dasharray:5 4;}
+.st-linia{fill:none;stroke-width:2;stroke-linejoin:round;stroke-linecap:round;}
+.st-linia-czasu{fill:none;stroke:var(--accent-info);stroke-width:1.5;stroke-linejoin:round;}
+.st-punkt{fill:var(--accent-confirm);}
+.st-punkt.wybrany{fill:var(--text);}
+.st-slupek{fill:var(--accent-confirm);}
+.st-slupek.wybrany{fill:var(--accent-info);}
+.st-prowadnica{stroke:var(--text-muted);stroke-width:1;}
+.st-hit{fill:transparent;cursor:pointer;}
+.st-odczyt{font-size:11px;color:var(--text-dim);min-height:16px;margin-top:4px;line-height:1.45;}
+
 /* ===== stopka (o wersji, w Ustawieniach) ===== */
 .stopka-wersja{font-size:11px;color:var(--text-muted);text-align:center;margin-top:var(--s4);}

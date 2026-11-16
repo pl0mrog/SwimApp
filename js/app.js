@@ -290,10 +290,6 @@ window.App = (function () {
   }
 
   function init() {
-    // Statystyki nie mają jeszcze własnego pliku (dopiero faza 2) —
-    // zakładka wyszarzona rejestrowana jest tu wprost.
-    zarejestrujWidok({ id: 'statystyki', etykieta: 'Statystyki', aktywny: false });
-
     obsluzLinkGoscia();
     odswiezOkno();
     window.addEventListener('resize', odswiezOkno);

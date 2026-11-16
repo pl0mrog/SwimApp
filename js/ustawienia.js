@@ -25,6 +25,8 @@ window.Ustawienia = (function () {
   // Habitify) odtwarza je z tych zmiennych zamiast je gubic.
   let habitifySprawdzanie = false;
   let habitifyBlad = '';
+  // domyślnie zwinięta — jak pozostałe karty Ustawień
+  let statRozwinieta = false;
 
   function montuj(kontener) {
     kontenerGlobalny = kontener;
@@ -52,6 +54,8 @@ window.Ustawienia = (function () {
     scroll.appendChild(renderPlanTreningowy());
     scroll.appendChild(renderSynchronizacja());
     scroll.appendChild(renderHabitify());
+    // Próg jest zapisem do dokumentu — gość go nie widzi, tak jak karty „Edycja".
+    if (Dane.tryb() !== 'gosc') scroll.appendChild(renderStatystyki());
     if (Dane.tryb() !== 'gosc') scroll.appendChild(renderEdycja());
     const wersja = document.createElement('p');
     wersja.className = 'stopka-wersja';
@@ -347,6 +351,53 @@ window.Ustawienia = (function () {
     tresc.querySelector('#syncUsun').addEventListener('click', function () {
       Dane.usunKonfiguracje();
       render();
+    });
+
+    return karta;
+  }
+
+  function renderStatystyki() {
+    const karta = document.createElement('div');
+    karta.className = 'card';
+
+    const naglowek = document.createElement('div');
+    naglowek.className = 'karta-head';
+    const tytul = document.createElement('div');
+    tytul.className = 'section-label';
+    tytul.textContent = 'Statystyki';
+    const strzalka = document.createElement('span');
+    strzalka.className = 'chevron' + (statRozwinieta ? ' open' : '');
+    strzalka.textContent = '▾';
+    naglowek.appendChild(tytul);
+    naglowek.appendChild(strzalka);
+    naglowek.addEventListener('click', function () {
+      statRozwinieta = !statRozwinieta;
+      render();
+    });
+    karta.appendChild(naglowek);
+
+    if (!statRozwinieta) return karta;
+
+    const aktualny = Statystyki.minSesji(Dane.wczytaj());
+    const tresc = document.createElement('div');
+    tresc.style.marginTop = '14px';
+    tresc.innerHTML =
+      '<p class="hint" style="margin-top:0;margin-bottom:10px;">Wykres „Sesje wg dystansu": pokazuj dystanse, które mają co najmniej tyle sesji.</p>' +
+      '<div class="toggle-group">' +
+        Statystyki.PROGI_SESJI.map(function (prog) {
+          return '<button type="button" class="toggle-btn' + (prog === aktualny ? ' active' : '') +
+            '" data-min="' + prog + '">' + (prog === 1 ? 'wszystkie' : prog) + '</button>';
+        }).join('') +
+      '</div>';
+    karta.appendChild(tresc);
+
+    tresc.querySelectorAll('.toggle-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        const dok = Dane.wczytaj();
+        dok.ustawienia.statMinSesji = Number(btn.dataset.min);
+        Dane.zapisz(dok);
+        render();
+      });
     });
 
     return karta;

@@ -6,7 +6,7 @@ jako statyczna strona.
 
 Projekt hobbystyczny, nie komercyjny. Powstaje przy okazji nauki [Claude Code](https://claude.com/claude-code).
 
-**Wersja:** 2.0.2
+**Wersja:** 2.1.0
 
 ## Co potrafi
 
@@ -17,6 +17,7 @@ Projekt hobbystyczny, nie komercyjny. Powstaje przy okazji nauki [Claude Code](h
 - **Plan** — plan treningowy (domyślnie 16-tygodniowy) z odhaczaniem wykonanych jednostek
   i kartą „następny trening"; sam plan da się podmienić przez import pliku, bez edycji kodu.
 - **Historia** — lista sesji grupowana rok / miesiąc, podgląd splitów, kopiowanie do Excela.
+- **Statystyki** — rekordy, dystans narastająco tydzień po tygodniu (z linią celu), liczba sesji wg dystansu, czas na 1000 i 1500 m.
 - **Komentarz do treningu** — krótka notatka przy sesji, widoczna w Historii.
 - **Ustawienia** — kopia zapasowa i eksport/import JSON (scalanie po `id`, bez duplikatów),
   import/eksport planu treningowego, edycja i masowe usuwanie sesji, synchronizacja online.
@@ -95,6 +96,7 @@ js/keypad.js            klawiatura numeryczna zastępująca systemową na dotyku
 js/plan.js              plan wbudowany (domyślny) + walidacja importowanego planu, zero DOM
 js/sesja-tabela.js      wspólna tabela splitów (podgląd + edycja)
 js/tracker.js           js/plan-widok.js   js/historia.js   js/ustawienia.js  — widoki
+js/statystyki.js        widok Statystyki — obliczenia + wykresy SVG
 ```
 
 Kolejność `<script>` w `index.html` jest znacząca — to klasyczne skrypty bez modułów,
