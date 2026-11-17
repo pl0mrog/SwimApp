@@ -33,7 +33,7 @@ window.PlanWidok = (function () {
     if (!dok.plan.wykonane[id]) dok.plan.wykonane[id] = {};
     if (zrobione) {
       dok.plan.wykonane[id][klucz] = {
-        data: new Date().toISOString().slice(0, 10),
+        data: Model.dzisIso(),
         sesjaId: null
       };
     } else {

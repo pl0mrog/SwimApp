@@ -154,7 +154,9 @@ window.Dane = (function () {
   function normalizujId(id) {
     const v = String(id).trim();
     const dopasowanie = v.match(/([0-9a-f]{20,})/i);
-    return dopasowanie ? dopasowanie[1] : v;
+    // Wyłącznie ciąg szesnastkowy. Dowolny inny tekst trafiał wprost do adresu zapytania
+    // (np. „../users/x") i do atrybutu value pola w Ustawieniach.
+    return dopasowanie ? dopasowanie[1] : '';
   }
 
   function ogonTokenu(token) {
@@ -193,6 +195,22 @@ window.Dane = (function () {
     return JSON.stringify(wczytaj(), null, 2);
   }
 
+  // Widoki grupują sesje po `data.slice(...)` — jedna sesja bez daty wywracała Historię,
+  // Ustawienia i eksport. Sprawdzane tylko przy imporcie pliku; Dane.scal() zostaje bez zmian.
+  function sesjaZPlikuOk(s) {
+    return !!s && typeof s === 'object' &&
+      typeof s.id === 'string' && s.id.length > 0 &&
+      typeof s.data === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s.data);
+  }
+
+  // Czy dokument ma cokolwiek, czego szkoda byłoby stracić (sesje albo odhaczenia planu).
+  function maTresc(dok) {
+    if (dok.sesje.length) return true;
+    return Object.keys(dok.plan.wykonane).some(function (id) {
+      return Object.keys(dok.plan.wykonane[id] || {}).length > 0;
+    });
+  }
+
   function importJSON(tekst) {
     let dok;
     try {
@@ -202,6 +220,13 @@ window.Dane = (function () {
     }
     if (!poprawny(dok)) {
       throw new Error('Plik nie ma poprawnej struktury danych SwimApp.');
+    }
+    if (dok.schemaVersion > SCHEMA_VERSION) {
+      throw new Error('Plik zapisano nowszą wersją apki — zaktualizuj SwimApp przed importem.');
+    }
+    const zleSesje = dok.sesje.filter(function (s) { return !sesjaZPlikuOk(s); }).length;
+    if (zleSesje) {
+      throw new Error('Plik zawiera sesje bez poprawnego id lub daty RRRR-MM-DD (' + zleSesje + '). Nic nie zaimportowano.');
     }
     const aktualny = wczytaj();
     const wynik = scal(aktualny, dok);
@@ -236,7 +261,7 @@ window.Dane = (function () {
       niewyslane: niewyslane(),
       wTrakcie: wTrakcieSieci,
       blad: stanBledu,
-      konflikt: konfliktAktywny ? { zdalnyCzas: konfliktAktywny.zdalny.ostatnia_modyfikacja, lokalnyCzas: konfliktAktywny.lokalny.ostatnia_modyfikacja } : null
+      konflikt: konfliktAktywny ? { zdalnyCzas: konfliktAktywny.zdalny.ostatnia_modyfikacja, lokalnyCzas: dokPamiec.ostatnia_modyfikacja } : null
     };
   }
 
@@ -354,7 +379,9 @@ window.Dane = (function () {
     if (probaBackoff >= BACKOFF.length) { probaBackoff = 0; return; }
     const opoznienie = BACKOFF[probaBackoff];
     probaBackoff++;
-    timerBackoff = setTimeout(function () { wypchnij(); }, opoznienie);
+    // odswiez(), nie wypchnij(): gdy nie ma nic do wysłania, wypchnij() kończyło od razu i nieudany
+    // odczyt nigdy nie był ponawiany. odswiez() samo woła wypchnij(), jeśli są niewysłane zmiany.
+    timerBackoff = setTimeout(function () { odswiez(); }, opoznienie);
   }
 
   function obsluzBlad(w, kontekst) {
@@ -402,7 +429,7 @@ window.Dane = (function () {
         const w = await wyslijZdalny(dokDoWyslania);
         wynik = przetworzWynikWyslania(w, dokDoWyslania);
       } else {
-        konfliktAktywny = { zdalny: pobranie.zdalny, lokalny: klon(dokDoWyslania) };
+        konfliktAktywny = { zdalny: pobranie.zdalny };
         wynik = { wynik: 'konflikt' };
         emituj('status-zmieniony');
       }
@@ -442,8 +469,17 @@ window.Dane = (function () {
     emituj('status-zmieniony');
 
     odswiezanieWToku = (async function () {
+      const stempelPrzed = dokPamiec.ostatnia_modyfikacja;
       const pobranie = await pobierzZdalny(true);
       let wynik;
+      // Udany odczyt kasuje wcześniejszy błąd ODCZYTU (np. „Brak połączenia" ze startu apki).
+      // Błędów zapisu (token, uprawnienia) nie rusza — te znikają dopiero po udanej wysyłce.
+      if ((pobranie.status === 'bez-zmian' || pobranie.status === 'puste' || pobranie.status === 'ok') &&
+          stanBledu && stanBledu.kontekst === 'pobranie') {
+        stanBledu = null;
+        probaBackoff = 0;
+        clearTimeout(timerBackoff);
+      }
       if (pobranie.status === 'bez-zmian' || pobranie.status === 'puste') {
         stan.ostatniOdczyt = new Date().toISOString();
         zapiszStanLokalny();
@@ -451,6 +487,11 @@ window.Dane = (function () {
       } else if (pobranie.status === 'ok') {
         if (pobranie.zdalny.ostatnia_modyfikacja === stan.znacznikZdalny) {
           wynik = { wynik: 'bez-zmian' };
+        } else if (dokPamiec.ostatnia_modyfikacja !== stempelPrzed) {
+          // W trakcie pobierania zapisano coś lokalnie — przyjęcie wersji z Gista skasowałoby ten
+          // zapis. Dane lokalne zostają; wypchnij() porówna znaczniki i pokaże zwykły baner konfliktu.
+          wynik = { wynik: 'lokalne-zmiany' };
+          zaplanujWypchniecie(0);
         } else {
           zapiszLokalnie(pobranie.zdalny, { stempluj: false });
           stan.znacznikZdalny = pobranie.zdalny.ostatnia_modyfikacja;
@@ -480,8 +521,11 @@ window.Dane = (function () {
 
   async function ustawKonfiguracje(cfg) {
     const idGista = normalizujId(cfg.idGista || '');
-    const token = cfg.token ? normalizujToken(cfg.token) : '';
-    if (!idGista) throw new Error('Podaj ID Gista.');
+    // Puste pole tokenu przy zapisanym już tokenie = „zostaw ten, który jest" (pole pokazuje jego
+    // końcówkę jako podpowiedź). Wcześniej kasowało token i urządzenie spadało do trybu gościa.
+    // Świadome przejście na sam odczyt: „Usuń z urządzenia", potem samo ID.
+    const token = cfg.token ? normalizujToken(cfg.token) : (czytajKonfig().token || '');
+    if (!idGista) throw new Error('Podaj poprawne ID Gista (cyfry i litery a–f, co najmniej 20 znaków).');
 
     const proba = { idGista: idGista, token: token };
     const testGet = await pobierzZdalnyZ(proba, false, false);
@@ -504,9 +548,23 @@ window.Dane = (function () {
     clearTimeout(timerBackoff);
 
     if (testGet.status === 'ok') {
-      zapiszLokalnie(testGet.zdalny, { stempluj: false });
-      stan.znacznikZdalny = testGet.zdalny.ostatnia_modyfikacja;
-      stan.etag = testGet.etag || null;
+      const zdalnyStempel = testGet.zdalny.ostatnia_modyfikacja;
+      const lokalnyStempel = dokPamiec.ostatnia_modyfikacja;
+      // „Swoje" = lokalnie jest treść, której Gist nie zna: znacznik inny niż w Giście
+      // i inny niż przy ostatniej synchronizacji.
+      const maSwoje = maTresc(dokPamiec) && lokalnyStempel !== zdalnyStempel && lokalnyStempel !== stan.znacznikZdalny;
+      if (!token || !maSwoje) {
+        zapiszLokalnie(testGet.zdalny, { stempluj: false });
+        stan.znacznikZdalny = zdalnyStempel;
+        stan.etag = testGet.etag || null;
+      } else if (zdalnyStempel === stan.znacznikZdalny) {
+        // Gist bez zmian od ostatniej synchronizacji — lokalne zmiany zostają i idą do wysłania.
+        zaplanujWypchniecie(0);
+      } else {
+        // Obie strony mają swoje zmiany: nie nadpisujemy po cichu, tylko zwykły baner konfliktu
+        // (scal / weź z Gista / nadpisz moją — porzucana wersja pobiera się jako plik).
+        konfliktAktywny = { zdalny: testGet.zdalny };
+      }
     } else if (token) {
       // Gist byl swiezy — PATCH powyzej wlasnie go utworzyl z biezacym dokumentem lokalnym.
       stan.znacznikZdalny = dokPamiec.ostatnia_modyfikacja;
@@ -542,7 +600,9 @@ window.Dane = (function () {
   async function rozwiazKonflikt(jak) {
     if (!konfliktAktywny) return { wynik: 'brak-konfliktu' };
     const zdalny = konfliktAktywny.zdalny;
-    const lokalny = konfliktAktywny.lokalny;
+    // Wersja lokalna brana TERAZ, nie z chwili wykrycia konfliktu: między banerem a kliknięciem
+    // można było jeszcze coś zapisać (komentarz, odhaczenie planu) i migawka by to skasowała.
+    const lokalny = klon(dokPamiec);
 
     if (jak === 'scal') {
       const scalony = klon(lokalny);
@@ -594,6 +654,13 @@ window.Dane = (function () {
       if (e.key === KLUCZ) {
         dokPamiec = czytajLokalnie();
         emituj('dane-zmienione');
+      } else if (e.key === KLUCZ_STAN) {
+        // Druga karta właśnie coś wysłała albo pobrała i przestawiła znacznik. Bez tego ta karta
+        // porównywała Gist ze starym znacznikiem i zgłaszała fałszywy konflikt.
+        stan = czytajStanLokalny();
+        emituj('status-zmieniony');
+      } else if (e.key === KLUCZ_GIST || e.key === KLUCZ_TOKEN) {
+        emituj('status-zmieniony');
       }
     });
   }

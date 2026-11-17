@@ -6,7 +6,7 @@ jako statyczna strona.
 
 Projekt hobbystyczny, nie komercyjny. Powstaje przy okazji nauki [Claude Code](https://claude.com/claude-code).
 
-**Wersja:** 2.1.0
+**Wersja:** 2.1.1
 
 ## Co potrafi
 
@@ -72,7 +72,7 @@ apka działa dokładnie jak wcześniej — czysto lokalnie, bez żadnego ruchu s
 
 Tryb gościa służy do udostępniania podglądu znajomym: link postaci
 `https://pl0mrog.github.io/SwimApp/?gist=<ID>` konfiguruje urządzenie odbiorcy na czysty
-odczyt (Tracker i edycja są niedostępne, widać tylko historię i plan). Urządzenie z już
+odczyt (widać wszystko i można przejść całą ścieżkę wpisywania w Trackerze, ale zapis jest zablokowany). Urządzenie z już
 wklejonym tokenem ignoruje taki link — nie da się w ten sposób podmienić cudzej konfiguracji.
 
 Cała warstwa danych jest odizolowana w `js/dane.js` — to jedyny plik w projekcie, który
@@ -91,6 +91,7 @@ icon/                   ikony aplikacji (ekran początkowy iOS)
 js/wersja.js            numer wersji (jedno źródło prawdy dla UI)
 js/app.js               router zakładek, rejestr widoków, ekran startowy
 js/dane.js              warstwa danych — jedyne miejsce dotykające localStorage
+js/habitify.js          opcjonalna wysyłka dystansu do nawyku „Pływanie" w Habitify
 js/model.js             obliczenia na sesji, parsowanie czasów, eksport do Excela
 js/keypad.js            klawiatura numeryczna zastępująca systemową na dotyku
 js/plan.js              plan wbudowany (domyślny) + walidacja importowanego planu, zero DOM

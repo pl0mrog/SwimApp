@@ -195,6 +195,11 @@ window.App = (function () {
     if (!gist) return;
     history.replaceState({}, '', location.pathname);
     if (Dane.stanSync().tokenOgon) return;
+    // Link zastępuje dane na urządzeniu danymi z Gista. Jeśli ktoś ma tu własne treningi
+    // (apka używana lokalnie, bez synchronizacji), nie robimy tego bez pytania.
+    const lokalnych = Dane.tryb() === 'lokalny' ? Dane.wczytaj().sesje.length : 0;
+    if (lokalnych && !confirm('Na tym urządzeniu są zapisane treningi (' + lokalnych + '). ' +
+        'Link pokaże zamiast nich dane właściciela — treningi z tego urządzenia znikną. Kontynuować?')) return;
     Dane.ustawKonfiguracje({ idGista: gist }).catch(function () { /* zly link — konfiguracja zostaje pusta */ });
   }
 

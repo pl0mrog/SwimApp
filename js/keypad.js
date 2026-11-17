@@ -9,6 +9,11 @@ window.Keypad = (function () {
     input.dispatchEvent(new Event(typ, { bubbles: true }));
   }
 
+  // Cała wartość pola jest zaznaczona (edycja komórki w tabeli splitów robi input.select()).
+  function zaznaczoneWszystko(input) {
+    return input.value.length > 0 && input.selectionStart === 0 && input.selectionEnd === input.value.length;
+  }
+
   // Cała klawiatura ekranowa działa tylko na dotyku (telefon/tablet): tam blokujemy
   // klawiaturę systemową i pokazujemy własną siatkę. Na komputerze nie montujemy nic,
   // a pole zostaje normalnie edytowalne — wpisywanie z fizycznej klawiatury jest szybsze.
@@ -53,6 +58,9 @@ window.Keypad = (function () {
     function cyfraBtn(d) {
       const b = przyciskKeypada(d, 'keypad-digit');
       b.addEventListener('click', function () {
+        // Zaznaczoną wartość pierwsza cyfra ZASTĘPUJE, jak na zwykłej klawiaturze. Bez tego „148"
+        // wpisane w pole z „155" dawało „1551" — poprawny format, zły czas (15:51).
+        if (zaznaczoneWszystko(input)) input.value = '';
         if (cyfry(input.value).length >= maxLen) return;
         input.value = cyfry(input.value) + d;
         odpal(input, 'input');
@@ -64,7 +72,8 @@ window.Keypad = (function () {
       const b = przyciskKeypada('&larr;', 'keypad-back');
       b.setAttribute('aria-label', 'Usuń cyfrę');
       b.addEventListener('click', function () {
-        input.value = cyfry(input.value).slice(0, -1);
+        // na zaznaczonej wartości „←" kasuje całość, jak Backspace na zaznaczeniu
+        input.value = zaznaczoneWszystko(input) ? '' : cyfry(input.value).slice(0, -1);
         odpal(input, 'input');
       });
       return b;

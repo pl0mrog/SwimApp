@@ -47,6 +47,22 @@ window.Model = (function () {
     return String(m) + (s < 10 ? '0' : '') + String(s);
   }
 
+  // Dzisiejsza data LOKALNA jako RRRR-MM-DD. Nie toISOString() — ten liczy w UTC, więc między
+  // północą a 1:00 (zimą) / 2:00 (latem) czasu polskiego zwracał wczorajszy dzień.
+  function dzisIso() {
+    const d = new Date();
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  }
+
+  // Dystans w metrach z pola tekstowego: same cyfry (spacja jako separator tysięcy dozwolona).
+  // Zwraca liczbę > 0 albo null. parseInt('2 000') dawał 2, a parseInt('2,5') też 2.
+  function parsujDystans(str) {
+    const czysty = String(str == null ? '' : str).replace(/\s/g, '');
+    if (!/^\d+$/.test(czysty)) return null;
+    const m = parseInt(czysty, 10);
+    return m > 0 ? m : null;
+  }
+
   // ===== obliczenia na sesji =====
 
   function dystansSplitu(i) {
@@ -180,6 +196,8 @@ window.Model = (function () {
     fmtMetry: fmtMetry,
     fmtExcel: fmtExcel,
     secNaCyfry: secNaCyfry,
+    dzisIso: dzisIso,
+    parsujDystans: parsujDystans,
     dystans: dystans,
     dystansSplitu: dystansSplitu,
     czasPlywania: czasPlywania,

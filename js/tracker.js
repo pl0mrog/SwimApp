@@ -26,7 +26,7 @@ window.Tracker = (function () {
     const dok = Dane.wczytaj();
     return {
       id: null,
-      data: new Date().toISOString().slice(0, 10),
+      data: Model.dzisIso(),
       basen: dok.ustawienia.ostatniBasen != null ? dok.ustawienia.ostatniBasen : 25,
       tag: PRESETY_TAGOW[0],
       splity: [],
@@ -61,6 +61,8 @@ window.Tracker = (function () {
     // ją tu wyzerować, wynik przepadłby bez śladu przy przejściu na inną zakładkę.
     // Po powrocie na Tracker renderStart() pokaże albo dalej "wysyłam", albo wynik.
     if (!habitifyProsba || habitifyProsba.faza !== 'wysylanie') habitifyProsba = null;
+    // potwierdzenie zapisu znika przy wyjściu z Trackera (albo przy „Dodaj nową sesję")
+    komunikatStartu = '';
   }
 
   function fmtDataPl(iso) {
@@ -102,7 +104,6 @@ window.Tracker = (function () {
 
   function renderStart(kontener) {
     kontener.innerHTML = '<div class="view-scroll">' + startCardHtml() + '</div>';
-    komunikatStartu = '';   // pokazujemy raz, po powrocie z zapisanego treningu
     // Wynik NIE znika sam przy przerysowaniu (np. przy odswiez() wywolanym przez
     // Dane po synchronizacji z Gistem) — inaczej ginalby, zanim uzytkownik go przeczyta.
     // Znika dopiero przy "Dodaj nowa sesje" albo wyjsciu z Trackera (odmontuj()).
@@ -146,6 +147,7 @@ window.Tracker = (function () {
     if (btnStart) {
       btnStart.addEventListener('click', function () {
         habitifyProsba = null;
+        komunikatStartu = '';
         sesja = sesjaPusta();
         zakonczony = false;
         milestoneOtwarty = null;
@@ -195,6 +197,10 @@ window.Tracker = (function () {
     wireStatyczne(kontener);
     odswiezDynamiczne(kontener);
     if (zakonczony) { pokazKomentarz(kontener); showExport(kontener); }
+    // Powrót na Tracker z innej zakładki buduje widok od zera, a flagi otwartych banerów żyją
+    // w module. Bez odtworzenia banera dolny panel zostawał ukryty i nie było jak iść dalej.
+    if (milestoneOtwarty !== null) pokazMilestone(kontener, milestoneOtwarty);
+    else if (endPromptOtwarty) otworzEndPrompt(kontener);
   }
 
   // ===== karta „Sesja" (zwijana, §5.1) =====
@@ -258,6 +264,9 @@ window.Tracker = (function () {
     const dataInp = kontener.querySelector('#metaData');
     dataInp.value = sesja.data;
     dataInp.addEventListener('change', function () {
+      // Picker daty na iOS ma „Wyczyść" — pusta data zapisywała się w sesji (grupa „undefined"
+      // w Historii, sesja poza statystykami). Wracamy do poprzedniej wartości.
+      if (!dataInp.value) { dataInp.value = sesja.data; return; }
       sesja.data = dataInp.value;
       odswiezOstrzezenieDaty(kontener);
       odswiezDynamiczne(kontener);
@@ -541,12 +550,12 @@ window.Tracker = (function () {
     if (czyGosc()) { kontener.querySelector('#manualMsg').textContent = KOMUNIKAT_GOSCIA; return; }
     const inp = kontener.querySelector('#manualDystans');
     const czasInp = kontener.querySelector('#manualCzas');
-    const dystansM = parseInt(inp.value, 10);
+    const dystansM = Model.parsujDystans(inp.value);
     inp.classList.remove('err');
     czasInp.classList.remove('err');
-    if (!dystansM || dystansM <= 0) {
+    if (dystansM === null) {
       inp.classList.add('err');
-      kontener.querySelector('#manualMsg').textContent = 'Podaj dystans w metrach (liczba > 0).';
+      kontener.querySelector('#manualMsg').textContent = 'Podaj dystans w metrach — same cyfry, np. 2000.';
       return;
     }
     let czasSec = null;
@@ -777,6 +786,12 @@ window.Tracker = (function () {
     const ostatni = sesja.splity[sesja.splity.length - 1];
     if (ostatni && ostatni.przerwa != null &&
         !confirm('Ostatni wpis to przerwa. Zakończyć trening mimo to?')) return;
+    otworzEndPrompt(kontener);
+  }
+
+  // Sam baner, bez pytania o przerwę — render() woła go też przy powrocie na Tracker
+  // z innej zakładki, gdy baner był już otwarty.
+  function otworzEndPrompt(kontener) {
     endPromptOtwarty = true;
     const sd = swimDist();
     const propozycja = propozycjaCzasuKonca();

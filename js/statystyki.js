@@ -38,12 +38,6 @@ window.Statystyki = (function () {
     return Math.min(TYGODNI, Math.floor((dzienRoku + przesuniecie) / 7) + 1);
   }
 
-  // Data lokalna (nie UTC) — po północy toISOString() cofałby się o dzień.
-  function dzisIso() {
-    const d = new Date();
-    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
-  }
-
   // Czas zbiorczy z zegarka na danym dystansie albo null. Kolejność źródeł:
   // 1) zbiorcze[dystans].swimSec (bez flagi doWeryfikacji) — także w dłuższych sesjach,
   // 2) tylko dla sesji o dystansie równym progowi: recznyCzas (ręczna) albo koniec.sec.
@@ -280,7 +274,7 @@ window.Statystyki = (function () {
   function rysuj() {
     const kontener = kontenerGlobalny;
     const dok = Dane.wczytaj();
-    const dane = policz(dok.sesje, dzisIso());
+    const dane = policz(dok.sesje, Model.dzisIso());
 
     kontener.innerHTML = '';
     const scroll = document.createElement('div');

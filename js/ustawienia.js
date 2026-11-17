@@ -834,10 +834,10 @@ window.Ustawienia = (function () {
       };
 
       if (czyReczna) {
-        const dystansVal = parseInt(dystansInp.value, 10);
-        if (!dystansVal || dystansVal <= 0) {
+        const dystansVal = Model.parsujDystans(dystansInp.value);
+        if (dystansVal === null) {
           dystansInp.classList.add('err');
-          blad.textContent = 'Podaj dystans w metrach (liczba > 0).';
+          blad.textContent = 'Podaj dystans w metrach — same cyfry, np. 2000.';
           return;
         }
         dystansInp.classList.remove('err');
